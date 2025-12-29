@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { decodeRoaringLimit } from './roaring.js';
+import { decodeRoaringLimit, countRoaring } from './roaring.js';
 
 const INITIAL_LOAD = 50;
 const LOAD_MORE = 25;
@@ -248,6 +248,7 @@ export class ResultsTable extends LitElement {
     this._expandedError = null;
     this._expandedTotal = 0;
     this._observer = null;
+    this._countCache = new Map(); // key -> count
   }
 
   updated(changedProps) {
@@ -256,7 +257,36 @@ export class ResultsTable extends LitElement {
       this._expandedKey = null;
       this._expandedEdids = [];
       this._expandedError = null;
+      this._countCache.clear();
+      // Precompute counts for visible results
+      this._computeCounts();
     }
+  }
+
+  async _computeCounts() {
+    if (!this.indexLoader) return;
+
+    try {
+      const index = await this.indexLoader.load(this.activeTab);
+      for (const result of this._visibleResults) {
+        if (!this._countCache.has(result.key)) {
+          try {
+            const bitmapBytes = index.getBitmapBytes(result);
+            const count = countRoaring(bitmapBytes);
+            this._countCache.set(result.key, count);
+          } catch (err) {
+            this._countCache.set(result.key, '?');
+          }
+        }
+      }
+      this.requestUpdate();
+    } catch (err) {
+      console.warn('Failed to compute counts:', err);
+    }
+  }
+
+  _getCount(key) {
+    return this._countCache.get(key);
   }
 
   firstUpdated() {
@@ -428,12 +458,14 @@ export class ResultsTable extends LitElement {
 
   _renderResult(result) {
     const isExpanded = this._expandedKey === result.key;
+    const count = this._getCount(result.key);
 
     return html`
       <li class="result-item">
         <button class="result-btn" @click=${() => this._onResultClick(result)}>
           <span class="result-arrow" data-expanded=${isExpanded}>&#9654;</span>
           <span class="result-key">${result.key}</span>
+          ${count !== undefined ? html`<span class="result-count">(${count})</span>` : ''}
         </button>
         ${isExpanded ? this._renderExpanded() : ''}
       </li>

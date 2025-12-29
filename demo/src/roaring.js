@@ -131,3 +131,55 @@ export function decodeRoaringLimit(data, limit) {
   const all = decodeRoaring(data);
   return all.slice(0, limit);
 }
+
+/**
+ * Get the cardinality (count) of a Roaring bitmap without fully decoding.
+ * Reads container metadata to sum cardinalities.
+ * @param {Uint8Array} data - Serialized bitmap data
+ * @returns {number} - Total number of integers in the bitmap
+ */
+export function countRoaring(data) {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  let offset = 0;
+
+  const cookie = view.getUint32(0, true);
+  offset += 4;
+
+  const SERIAL_COOKIE_NO_RUNCONTAINER = 12346;
+  const SERIAL_COOKIE = 12347;
+
+  let numContainers;
+  let hasRunContainers = false;
+
+  if (cookie === SERIAL_COOKIE_NO_RUNCONTAINER) {
+    numContainers = view.getUint32(offset, true);
+    offset += 4;
+  } else if (cookie === SERIAL_COOKIE) {
+    numContainers = view.getUint32(offset, true);
+    offset += 4;
+    hasRunContainers = true;
+  } else if ((cookie & 0xFFFF) === SERIAL_COOKIE_NO_RUNCONTAINER) {
+    numContainers = (cookie >> 16) + 1;
+  } else if ((cookie & 0xFFFF) === SERIAL_COOKIE) {
+    numContainers = (cookie >> 16) + 1;
+    hasRunContainers = true;
+  } else {
+    throw new Error(`Unknown Roaring bitmap format: 0x${cookie.toString(16)}`);
+  }
+
+  // Skip run container bitmap if present
+  if (hasRunContainers) {
+    offset += Math.ceil(numContainers / 8);
+  }
+
+  // Sum cardinalities from key-cardinality pairs
+  let totalCount = 0;
+  for (let i = 0; i < numContainers; i++) {
+    offset += 2; // Skip key
+    const cardinality = view.getUint16(offset, true) + 1; // stored as card - 1
+    offset += 2;
+    totalCount += cardinality;
+  }
+
+  return totalCount;
+}
