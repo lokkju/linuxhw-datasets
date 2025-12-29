@@ -10,29 +10,24 @@ data/
   buckets/
     00.bin ... ff.bin     # 256 bucket files (by MD5 prefix)
   metadata/
-    indexes/
-      vendors/
-        *.roaring         # Roaring bitmap per vendor
-        _manifest.json    # Vendor index manifest
-      models/
-        *.roaring         # Roaring bitmap per model
-        _manifest.json    # Model index manifest
-      sizes/
-        *.roaring         # Roaring bitmap per screen size
-        _manifest.json    # Size index manifest
+    vendors.idx           # Packed index: path vendor names
+    products.idx          # Packed index: product names (vendor prefix stripped)
+    codes.idx             # Packed index: PNP ID codes (e.g., DEL01101)
+    sizes.idx             # Packed index: screen sizes in inches
 ```
 
 ## Manifest (manifest.json)
 
 ```json
 {
-  "version": 2,
+  "version": 4,
   "total_entries": 141753,
   "buckets": 256,
   "indexes": {
-    "vendors": {"count": 572, "total_bytes": 243666},
-    "models": {"count": 21607, "total_bytes": 738634},
-    "sizes": {"count": 139, "total_bytes": 225284}
+    "vendors": {"count": 572, "total_bytes": 253577, "strings_bytes": 3031, "bitmaps_bytes": 243666},
+    "products": {"count": 12997, "total_bytes": 801623, "strings_bytes": 99259, "bitmaps_bytes": 546384},
+    "codes": {"count": 21604, "total_bytes": 1155234, "strings_bytes": 157390, "bitmaps_bytes": 738580},
+    "sizes": {"count": 139, "total_bytes": 227512, "strings_bytes": 544, "bitmaps_bytes": 225284}
   }
 }
 ```
@@ -79,25 +74,44 @@ Packed offset + length for each EDID's raw bytes:
 
 Raw EDID bytes, 4-byte aligned. Typical EDID is 128 or 256 bytes.
 
-## Roaring Bitmap Indexes
+## Packed Index File Format (.idx)
 
-Indexes map dimension values (vendor, model, screen size) to sets of entry indices.
+Each index file contains all entries for one dimension (vendors, products, codes, or sizes) packed into a single file with embedded Roaring bitmaps.
 
-### Index Manifest (_manifest.json)
+### Header (16 bytes)
 
-```json
-{
-  "Dell": {"file": "Dell.roaring", "count": 5432},
-  "Samsung": {"file": "Samsung.roaring", "count": 3210},
-  ...
-}
-```
+| Offset | Size | Type   | Description               |
+|--------|------|--------|---------------------------|
+| 0      | 4    | bytes  | Magic: `EIDX`             |
+| 4      | 2    | u16le  | Version (currently 1)     |
+| 6      | 4    | u32le  | Entry count               |
+| 10     | 6    | bytes  | Reserved (zeros)          |
 
-### Roaring Files (*.roaring)
+### Entry Table (12 bytes per entry)
 
-Standard [Roaring Bitmap](https://roaringbitmap.org/) serialization format. Each bitmap contains the indices of entries matching that dimension value.
+| Offset | Size | Type   | Description               |
+|--------|------|--------|---------------------------|
+| 0      | 4    | u32le  | String offset (absolute)  |
+| 4      | 2    | u16le  | String length             |
+| 6      | 4    | u32le  | Bitmap offset (absolute)  |
+| 10     | 2    | u16le  | Bitmap length             |
 
-Entry indices correspond to the global sorted order by MD5 hash (same order as bucket files).
+### Strings Section
+
+UTF-8 encoded strings, packed contiguously. Each string is the key for its corresponding entry (vendor name, product name, PNP code, or screen size).
+
+### Bitmaps Section
+
+Serialized [Roaring Bitmaps](https://roaringbitmap.org/), packed contiguously. Each bitmap contains the global indices of entries matching that key.
+
+## Index Descriptions
+
+| Index | Key Example | Description |
+|-------|-------------|-------------|
+| `vendors.idx` | "Dell", "Samsung" | Vendor names from linuxhw/EDID directory structure |
+| `products.idx` | "U2412M", "27GL850" | Product names with vendor prefix stripped |
+| `codes.idx` | "DEL01101", "SAM0A7C" | PNP ID codes (vendor 3-letter + model number from EDID) |
+| `sizes.idx` | "27.0", "32.0" | Diagonal screen size in inches (rounded to 0.5") |
 
 ## Lookup Algorithm
 
@@ -109,19 +123,22 @@ Entry indices correspond to the global sorted order by MD5 hash (same order as b
 4. Read metadata and value offset at found index
 5. Return EDID data
 
-### By Dimension (Vendor/Model/Size)
+### By Dimension (Vendor/Product/Code/Size)
 
-1. Load Roaring bitmap for desired value
-2. AND bitmaps together for multi-dimension queries
-3. For each index in result bitmap, determine bucket and position
-4. Look up individual entries
+1. Load packed index file (e.g., `products.idx`)
+2. Binary search entry table by string key
+3. Deserialize Roaring bitmap for matching entry
+4. AND bitmaps together for multi-dimension queries
+5. For each index in result bitmap, determine bucket and position
+6. Look up individual entries
 
 ## Size Estimates
 
 | Component | Size |
 |-----------|------|
 | Buckets (256 files) | ~35 MB |
-| Vendor index | ~244 KB |
-| Model index | ~739 KB |
-| Size index | ~225 KB |
-| **Total** | **~36 MB** |
+| Vendor index | ~254 KB |
+| Product index | ~802 KB |
+| Code index | ~1.2 MB |
+| Size index | ~228 KB |
+| **Total** | **~37 MB** |

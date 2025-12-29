@@ -91,8 +91,11 @@ def generate_compact_files(
     vendor_stats = build_packed_index(
         conn, "path_vendor", metadata_dir / "vendors.idx", md5_to_index
     )
-    model_stats = build_model_index(
-        conn, metadata_dir / "models.idx", md5_to_index
+    product_stats = build_product_index(
+        conn, metadata_dir / "products.idx", md5_to_index
+    )
+    code_stats = build_code_index(
+        conn, metadata_dir / "codes.idx", md5_to_index
     )
     size_stats = build_packed_size_index(
         conn, metadata_dir / "sizes.idx", md5_to_index
@@ -100,12 +103,13 @@ def generate_compact_files(
 
     # Write manifest
     manifest = {
-        "version": 3,
+        "version": 4,
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
         "indexes": {
             "vendors": vendor_stats,
-            "models": model_stats,
+            "products": product_stats,
+            "codes": code_stats,
             "sizes": size_stats,
         },
     }
@@ -374,12 +378,12 @@ def strip_vendor_prefix(product_name: str, vendor: str | None) -> str:
     return product_name
 
 
-def build_model_index(
+def build_product_index(
     conn: duckdb.DuckDBPyConnection,
     output_path: Path,
     md5_to_index: dict[str, int],
 ) -> dict:
-    """Build a packed model index using product_name with vendor prefix stripped."""
+    """Build a packed product index using product_name with vendor prefix stripped."""
     result = conn.execute("""
         SELECT product_name, path_vendor, md5_hex
         FROM edids
@@ -405,6 +409,31 @@ def build_model_index(
             if md5_hex in md5_to_index:
                 bitmap.add(md5_to_index[md5_hex])
         entries.append((model, bitmap))
+
+    return write_packed_index(output_path, entries)
+
+
+def build_code_index(
+    conn: duckdb.DuckDBPyConnection,
+    output_path: Path,
+    md5_to_index: dict[str, int],
+) -> dict:
+    """Build a packed index for vendor+model PNP ID codes (e.g., DEL01101, SAM0A7C)."""
+    result = conn.execute("""
+        SELECT vendor || model as pnp_code, LIST(md5_hex ORDER BY md5_hex)
+        FROM edids
+        WHERE vendor IS NOT NULL AND model IS NOT NULL
+        GROUP BY pnp_code
+        ORDER BY pnp_code
+    """).fetchall()
+
+    entries = []
+    for code, md5_list in result:
+        bitmap = BitMap()
+        for md5_hex in md5_list:
+            if md5_hex in md5_to_index:
+                bitmap.add(md5_to_index[md5_hex])
+        entries.append((code, bitmap))
 
     return write_packed_index(output_path, entries)
 
