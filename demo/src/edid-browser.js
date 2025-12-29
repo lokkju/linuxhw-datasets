@@ -58,15 +58,10 @@ export class EdidBrowser extends LitElement {
       font-size: 0.8125rem;
     }
 
-    .header a {
-      color: var(--color-accent, #e94560);
-      text-decoration: none;
-      font-size: 0.8125rem;
+    .header .source {
+      color: var(--color-text-muted, #888);
+      font-size: 0.75rem;
       margin-left: auto;
-    }
-
-    .header a:hover {
-      text-decoration: underline;
     }
 
     .search-section {
@@ -215,10 +210,6 @@ export class EdidBrowser extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
-    .status-time {
-      color: var(--color-text-muted, #666);
-    }
   `;
 
   constructor() {
@@ -338,17 +329,12 @@ export class EdidBrowser extends LitElement {
     this.removeAttribute('show-detail');
   }
 
-  _formatTime(timestamp) {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
   render() {
     return html`
       <div class="header">
         <h1>EDID Browser</h1>
         <span class="count">141,753 monitors</span>
-        <a href="https://github.com/linuxhw/EDID" target="_blank">linuxhw/EDID</a>
+        <span class="source">lokkju/edid-dataset using linuxhw/EDID data</span>
       </div>
       <div class="search-section">
         <search-tabs
@@ -382,7 +368,6 @@ export class EdidBrowser extends LitElement {
       <div class="status-bar">
         <span class="status-indicator" data-type=${this._status.type}></span>
         <span class="status-message">${this._status.message}</span>
-        <span class="status-time">${this._formatTime(this._status.timestamp)}</span>
       </div>
     `;
   }
