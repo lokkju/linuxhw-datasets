@@ -74,6 +74,10 @@ export class ResultsTable extends LitElement {
       border-bottom: 1px solid var(--color-border, #2a2a4e);
     }
 
+    .result-item:nth-child(odd) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
     .result-btn {
       width: 100%;
       padding: 0.625rem 1rem;
@@ -91,6 +95,14 @@ export class ResultsTable extends LitElement {
 
     .result-btn:hover {
       background: var(--color-surface, #16213e);
+    }
+
+    .result-item[data-selected="true"] > .result-btn {
+      background: var(--color-primary, #0f3460);
+    }
+
+    .result-item[data-selected="true"] {
+      border-left: 2px solid var(--color-accent, #e94560);
     }
 
     .result-arrow {
@@ -127,18 +139,34 @@ export class ResultsTable extends LitElement {
 
     .edid-item {
       padding: 0.5rem;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.125rem;
       background: var(--color-bg, #1a1a2e);
       border-radius: var(--radius, 4px);
       font-size: 0.8125rem;
       display: flex;
       align-items: center;
       gap: 1rem;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .edid-item:nth-child(odd) {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .edid-item:hover {
+      background: var(--color-primary, #0f3460);
+    }
+
+    .edid-item[data-selected="true"] {
+      background: var(--color-primary, #0f3460);
+      border-left: 2px solid var(--color-accent, #e94560);
     }
 
     .edid-item[data-error="true"] {
       border-left: 2px solid var(--color-accent, #e94560);
       opacity: 0.7;
+      cursor: default;
     }
 
     .edid-resolution {
@@ -249,6 +277,7 @@ export class ResultsTable extends LitElement {
     this._expandedTotal = 0;
     this._observer = null;
     this._countCache = new Map(); // key -> count
+    this._selectedEdid = null; // selected EDID md5Hex
   }
 
   updated(changedProps) {
@@ -423,6 +452,18 @@ export class ResultsTable extends LitElement {
     }
   }
 
+  _onEdidSelect(edid) {
+    if (edid._error) return; // Can't select errored entries
+
+    this._selectedEdid = edid.md5Hex;
+    this.dispatchEvent(new CustomEvent('edid-select', {
+      detail: { edid },
+      bubbles: true,
+      composed: true,
+    }));
+    dispatchStatus(this, `Selected EDID ${edid.md5Hex.slice(0, 8)}`, 'info');
+  }
+
   render() {
     if (this.isLoadingIndex) {
       return html`<div class="loading"><div class="spinner"></div>Loading index...</div>`;
@@ -515,7 +556,7 @@ export class ResultsTable extends LitElement {
         <li class="edid-item" data-error="true">
           <span class="edid-hash">#${edid._globalIndex}</span>
           <span class="edid-error">Failed: ${edid._error}</span>
-          <button class="retry-btn" @click=${() => this._retryEdid(edid._globalIndex, index)}>Retry</button>
+          <button class="retry-btn" @click=${(e) => { e.stopPropagation(); this._retryEdid(edid._globalIndex, index); }}>Retry</button>
         </li>
       `;
     }
@@ -528,9 +569,15 @@ export class ResultsTable extends LitElement {
       ? `${Math.round(Math.sqrt(edid.widthMm**2 + edid.heightMm**2) / 25.4)}"`
       : '';
 
+    const isSelected = this._selectedEdid === edid.md5Hex;
+
     // Format: hash | resolution | size | year | type
     return html`
-      <li class="edid-item">
+      <li
+        class="edid-item"
+        data-selected=${isSelected}
+        @click=${() => this._onEdidSelect(edid)}
+      >
         <span class="edid-hash">${edid.md5Hex.slice(0, 8)}</span>
         <span class="edid-resolution">${resolution}</span>
         <span class="edid-meta">

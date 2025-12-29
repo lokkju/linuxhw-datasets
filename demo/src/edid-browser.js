@@ -17,6 +17,7 @@ export class EdidBrowser extends LitElement {
     isSearching: { type: Boolean, state: true },
     isLoadingIndex: { type: Boolean, state: true },
     _status: { type: Object, state: true },
+    _selectedEdid: { type: Object, state: true },
   };
 
   static styles = css`
@@ -106,6 +107,7 @@ export class EdidBrowser extends LitElement {
     this.indexLoader = null;
     this.bucketLoader = null;
     this._status = { message: 'Ready', type: 'info', timestamp: Date.now() };
+    this._selectedEdid = null;
   }
 
   connectedCallback() {
@@ -144,6 +146,12 @@ export class EdidBrowser extends LitElement {
     this._status = e.detail;
   }
 
+  _onEdidSelect(e) {
+    this._selectedEdid = e.detail.edid;
+    // Future: This will trigger showing the detail panel
+    // On mobile, this would slide to a new screen
+  }
+
   _formatTime(timestamp) {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -168,6 +176,7 @@ export class EdidBrowser extends LitElement {
           .bucketLoader=${this.bucketLoader}
           .activeTab=${this.activeTab}
           @status=${this._onStatus}
+          @edid-select=${this._onEdidSelect}
         ></results-table>
       </div>
       <div class="status-bar">
