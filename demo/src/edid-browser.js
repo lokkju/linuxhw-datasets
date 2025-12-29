@@ -21,6 +21,7 @@ export class EdidBrowser extends LitElement {
     _selectedEdid: { type: Object, state: true },
     _layoutMode: { type: String, state: true },  // 'wide', 'stacked', 'mobile'
     _showDetail: { type: Boolean, state: true }, // For mobile slide navigation
+    _upstream: { type: Object, state: true },    // { commit, date } from manifest
   };
 
   static styles = css`
@@ -56,6 +57,17 @@ export class EdidBrowser extends LitElement {
     .header .count {
       color: var(--color-text-muted, #888);
       font-size: 0.8125rem;
+    }
+
+    .header .project-link {
+      color: var(--color-accent, #e94560);
+      text-decoration: none;
+      font-size: 0.8125rem;
+      margin-left: auto;
+    }
+
+    .header .project-link:hover {
+      text-decoration: underline;
     }
 
     .search-section {
@@ -226,6 +238,7 @@ export class EdidBrowser extends LitElement {
     this._layoutMode = 'wide';
     this._showDetail = false;
     this._resizeObserver = null;
+    this._upstream = null;
   }
 
   connectedCallback() {
@@ -237,8 +250,12 @@ export class EdidBrowser extends LitElement {
     this.indexLoader = new IndexLoader(this.baseUrl);
     this.bucketLoader = new BucketLoader(this.baseUrl);
 
-    // Preload manifest for bucket lookups
-    this.bucketLoader.loadManifest();
+    // Preload manifest for bucket lookups and get upstream info
+    this.bucketLoader.loadManifest().then(manifest => {
+      if (manifest?.upstream) {
+        this._upstream = manifest.upstream;
+      }
+    });
 
     // Progressive background loading - smallest/most useful first
     this._preloadIndexes();
@@ -328,11 +345,20 @@ export class EdidBrowser extends LitElement {
     this.removeAttribute('show-detail');
   }
 
+  _renderUpstreamInfo() {
+    if (!this._upstream) {
+      return 'Powered by linuxhw/EDID';
+    }
+    const { commit, date } = this._upstream;
+    return `Powered by linuxhw/EDID rev ${commit} @ ${date}`;
+  }
+
   render() {
     return html`
       <div class="header">
         <h1>EDID Browser</h1>
         <span class="count">141,753 monitors</span>
+        <a href="https://github.com/lokkju/edid-dataset" target="_blank" class="project-link">lokkju/edid-dataset</a>
       </div>
       <div class="search-section">
         <search-tabs
@@ -366,7 +392,7 @@ export class EdidBrowser extends LitElement {
       <div class="status-bar">
         <span class="status-indicator" data-type=${this._status.type}></span>
         <span class="status-message">${this._status.message}</span>
-        <span class="status-source">lokkju/edid-dataset using linuxhw/EDID data</span>
+        <span class="status-source">${this._renderUpstreamInfo()}</span>
       </div>
     `;
   }

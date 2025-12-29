@@ -3,11 +3,43 @@
 import json
 import re
 import struct
+import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import duckdb
 from pyroaring import BitMap
 from tqdm import tqdm
+
+
+def get_upstream_info(upstream_path: Path) -> dict:
+    """Get git revision info from upstream EDID repo."""
+    try:
+        # Get the current commit hash
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=upstream_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        commit = result.stdout.strip()[:12]  # Short hash
+
+        # Get the commit date
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%ci"],
+            cwd=upstream_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        date_str = result.stdout.strip()
+        # Parse and reformat: "2024-01-15 10:30:00 +0000" -> "2024-01-15"
+        date = date_str.split()[0]
+
+        return {"commit": commit, "date": date}
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return {"commit": "unknown", "date": "unknown"}
 
 # Bucket file format constants
 BUCKET_MAGIC = b"EDIB"
@@ -22,6 +54,7 @@ def generate_compact_files(
     db_path: Path,
     output_path: Path,
     *,
+    upstream_path: Path | None = None,
     show_progress: bool = True,
 ) -> dict:
     """Generate compact binary files from DuckDB database."""
@@ -109,12 +142,18 @@ def generate_compact_files(
         conn, metadata_dir / "paths.idx", md5_to_index
     )
 
+    # Get upstream info if path provided
+    upstream_info = None
+    if upstream_path:
+        upstream_info = get_upstream_info(upstream_path)
+
     # Write manifest
     manifest = {
-        "version": 6,
+        "version": 7,
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
         "bucket_counts": stats["bucket_counts"],
+        "built_at": datetime.utcnow().strftime("%Y-%m-%d"),
         "indexes": {
             "vendors": vendor_stats,
             "products": product_stats,
@@ -123,6 +162,9 @@ def generate_compact_files(
             "paths": path_stats,
         },
     }
+    if upstream_info:
+        manifest["upstream"] = upstream_info
+
     (output_path / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
     conn.close()

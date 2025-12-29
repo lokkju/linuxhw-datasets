@@ -74,14 +74,24 @@ def ingest(input_path: Path, output_path: Path, batch_size: int):
     default=Path("data"),
     help="Output directory for compact files",
 )
-def generate(db_path: Path, output_path: Path):
+@click.option(
+    "--upstream",
+    "-u",
+    "upstream_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Path to upstream linuxhw/EDID repo (for rev info in manifest)",
+)
+def generate(db_path: Path, output_path: Path, upstream_path: Path | None):
     """Generate compact binary files from DuckDB database."""
     from .generate import generate_compact_files
 
     click.echo(f"Reading from: {db_path}")
     click.echo(f"Output directory: {output_path}")
 
-    stats = generate_compact_files(db_path, output_path, show_progress=True)
+    stats = generate_compact_files(
+        db_path, output_path, upstream_path=upstream_path, show_progress=True
+    )
 
     click.echo("\nGeneration complete:")
     click.echo(f"  Buckets written:  {stats['buckets_written']}")
