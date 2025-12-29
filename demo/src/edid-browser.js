@@ -29,6 +29,10 @@ export class EdidBrowser extends LitElement {
       flex-direction: column;
       height: 100%;
       min-height: 0;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: var(--color-bg, #1a1a2e);
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     }
 
     .search-section {
