@@ -93,6 +93,7 @@ export class EdidBrowser extends LitElement {
     :host([layout="mobile"]) .results-section,
     :host([layout="mobile"]) .detail-section {
       width: auto;
+      min-width: 0;
       position: absolute;
       top: 0;
       left: 0;
@@ -130,7 +131,7 @@ export class EdidBrowser extends LitElement {
       background: var(--color-surface, #16213e);
       /* Default to wide layout */
       flex: 1;
-      min-width: 0;
+      min-width: 400px;
     }
 
     .status-bar {
