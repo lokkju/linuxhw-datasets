@@ -65,21 +65,38 @@ export class SearchTabs extends LitElement {
 
     .tab-progress {
       position: absolute;
-      bottom: 0;
-      left: 0;
-      height: 4px;
-      background: rgba(255,255,255,0.3);
-      width: 100%;
+      top: 0.25rem;
+      right: 0.25rem;
+      height: 1.25rem;
+      width: 3.5rem;
+      background: rgba(0,0,0,0.4);
+      border-radius: 3px;
+      overflow: hidden;
+      font-size: 0.625rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .tab-progress-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
       height: 100%;
       background: var(--color-accent);
       transition: width 0.15s ease-out;
+      opacity: 0.7;
     }
 
     .tab-progress-bar[data-loaded="true"] {
       background: #4ade80; /* green when fully loaded */
+    }
+
+    .tab-progress-text {
+      position: relative;
+      z-index: 1;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
 
     .search-box {
@@ -265,6 +282,14 @@ export class SearchTabs extends LitElement {
       progress = (loaded / total) * 100;
     }
 
+    // Text to show in progress badge
+    let progressText = '';
+    if (isLoaded) {
+      progressText = 'ready';
+    } else if (isLoading) {
+      progressText = `${Math.round(progress)}%`;
+    }
+
     return html`
       <button
         class="tab"
@@ -272,14 +297,17 @@ export class SearchTabs extends LitElement {
         @click=${() => this._onTabClick(tab.id)}
       >
         <span class="tab-label">${tab.label}</span>
-        <span class="tab-size">${isLoading ? this._formatBytes(loaded) + ' / ' : ''}${tab.size}</span>
-        <div class="tab-progress">
-          <div
-            class="tab-progress-bar"
-            data-loaded=${isLoaded}
-            style="width: ${progress}%"
-          ></div>
-        </div>
+        <span class="tab-size">${tab.size}</span>
+        ${isLoading || isLoaded ? html`
+          <div class="tab-progress">
+            <div
+              class="tab-progress-bar"
+              data-loaded=${isLoaded}
+              style="width: ${progress}%"
+            ></div>
+            <span class="tab-progress-text">${progressText}</span>
+          </div>
+        ` : ''}
       </button>
     `;
   }
