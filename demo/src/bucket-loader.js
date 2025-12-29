@@ -136,11 +136,22 @@ export class ParsedBucket {
     this.entryCount = this.view.getUint16(6, true);
     this.valuesOffset = this.view.getUint32(8, true);
 
-    // Calculate section offsets (v2: no metadata section)
+    // Calculate section offsets
     this.headerSize = 16;
     this.keysOffset = this.headerSize;
     this.keysSize = this.entryCount * 15;
-    this.offsetsOffset = this.keysOffset + this.keysSize;
+
+    if (this.version === 1) {
+      // v1: has metadata section (16 bytes per entry)
+      this.metadataOffset = this.keysOffset + this.keysSize;
+      this.metadataSize = this.entryCount * 16;
+      this.offsetsOffset = this.metadataOffset + this.metadataSize;
+    } else {
+      // v2+: no metadata section
+      this.metadataOffset = null;
+      this.metadataSize = 0;
+      this.offsetsOffset = this.keysOffset + this.keysSize;
+    }
   }
 
   /**
