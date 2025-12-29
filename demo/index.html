@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDID Dataset Browser</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "lit": "https://esm.run/lit@3",
+      "lit/": "https://esm.run/lit@3/",
+      "roaring-wasm": "https://esm.run/roaring-wasm@1"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>EDID Dataset Browser</h1>
+    <p>Search 141,753 monitor EDIDs from <a href="https://github.com/linuxhw/EDID">linuxhw/EDID</a></p>
+  </header>
+
+  <main>
+    <edid-browser data-base-url="../data/"></edid-browser>
+  </main>
+
+  <script type="module" src="src/edid-browser.js"></script>
+</body>
+</html>
