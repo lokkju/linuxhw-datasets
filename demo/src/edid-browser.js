@@ -58,12 +58,6 @@ export class EdidBrowser extends LitElement {
       font-size: 0.8125rem;
     }
 
-    .header .source {
-      color: var(--color-text-muted, #888);
-      font-size: 0.75rem;
-      margin-left: auto;
-    }
-
     .search-section {
       padding: 0.75rem 1rem;
       background: var(--color-surface, #16213e);
@@ -210,6 +204,11 @@ export class EdidBrowser extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+    .status-source {
+      color: var(--color-text-muted, #666);
+      font-size: 0.625rem;
+    }
   `;
 
   constructor() {
@@ -334,7 +333,6 @@ export class EdidBrowser extends LitElement {
       <div class="header">
         <h1>EDID Browser</h1>
         <span class="count">141,753 monitors</span>
-        <span class="source">lokkju/edid-dataset using linuxhw/EDID data</span>
       </div>
       <div class="search-section">
         <search-tabs
@@ -368,6 +366,7 @@ export class EdidBrowser extends LitElement {
       <div class="status-bar">
         <span class="status-indicator" data-type=${this._status.type}></span>
         <span class="status-message">${this._status.message}</span>
+        <span class="status-source">lokkju/edid-dataset using linuxhw/EDID data</span>
       </div>
     `;
   }
