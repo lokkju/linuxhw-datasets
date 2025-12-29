@@ -16,6 +16,7 @@ export class EdidBrowser extends LitElement {
     results: { type: Array, state: true },
     isSearching: { type: Boolean, state: true },
     isLoadingIndex: { type: Boolean, state: true },
+    _status: { type: Object, state: true },
   };
 
   static styles = css`
@@ -39,6 +40,59 @@ export class EdidBrowser extends LitElement {
       overflow-y: auto;
       background: var(--color-bg, #1a1a2e);
     }
+
+    .status-bar {
+      height: 24px;
+      padding: 0 1rem;
+      background: var(--color-surface, #16213e);
+      border-top: 1px solid var(--color-border, #2a2a4e);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.6875rem;
+      color: var(--color-text-muted, #888);
+      flex-shrink: 0;
+    }
+
+    .status-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-text-muted, #888);
+    }
+
+    .status-indicator[data-type="loading"] {
+      background: var(--color-accent, #e94560);
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .status-indicator[data-type="success"] {
+      background: #4ade80;
+    }
+
+    .status-indicator[data-type="warning"] {
+      background: #fbbf24;
+    }
+
+    .status-indicator[data-type="error"] {
+      background: var(--color-accent, #e94560);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .status-message {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-time {
+      color: var(--color-text-muted, #666);
+    }
   `;
 
   constructor() {
@@ -51,6 +105,7 @@ export class EdidBrowser extends LitElement {
     this.isLoadingIndex = false;
     this.indexLoader = null;
     this.bucketLoader = null;
+    this._status = { message: 'Ready', type: 'info', timestamp: Date.now() };
   }
 
   connectedCallback() {
@@ -70,11 +125,28 @@ export class EdidBrowser extends LitElement {
 
     for (const name of loadOrder) {
       try {
+        this._setStatus(`Preloading ${name} index...`, 'loading');
         await this.indexLoader.load(name);
+        this._setStatus(`Loaded ${name} index`, 'success');
       } catch (err) {
         console.warn(`Failed to preload ${name}:`, err);
+        this._setStatus(`Failed to preload ${name}: ${err.message}`, 'warning');
       }
     }
+    this._setStatus('All indexes loaded', 'success');
+  }
+
+  _setStatus(message, type = 'info') {
+    this._status = { message, type, timestamp: Date.now() };
+  }
+
+  _onStatus(e) {
+    this._status = e.detail;
+  }
+
+  _formatTime(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
   render() {
@@ -95,7 +167,13 @@ export class EdidBrowser extends LitElement {
           .indexLoader=${this.indexLoader}
           .bucketLoader=${this.bucketLoader}
           .activeTab=${this.activeTab}
+          @status=${this._onStatus}
         ></results-table>
+      </div>
+      <div class="status-bar">
+        <span class="status-indicator" data-type=${this._status.type}></span>
+        <span class="status-message">${this._status.message}</span>
+        <span class="status-time">${this._formatTime(this._status.timestamp)}</span>
       </div>
     `;
   }
@@ -104,6 +182,7 @@ export class EdidBrowser extends LitElement {
     this.activeTab = e.detail.tab;
     this.results = [];
     this.searchQuery = '';
+    this._setStatus(`Switched to ${e.detail.tab}`, 'info');
   }
 
   async _onSearch(e) {
@@ -114,12 +193,14 @@ export class EdidBrowser extends LitElement {
     }
 
     this.searchQuery = query;
+    this._setStatus(`Searching "${query}"...`, 'loading');
 
     try {
       // Check if index needs loading
       const indexState = this.indexLoader.getState(tab);
       if (indexState !== 'loaded') {
         this.isLoadingIndex = true;
+        this._setStatus(`Loading ${tab} index...`, 'loading');
       }
 
       // Load index if not already loaded
@@ -130,9 +211,11 @@ export class EdidBrowser extends LitElement {
       this.isSearching = true;
       const matches = index.search(query);
       this.results = matches;
+      this._setStatus(`Found ${matches.length} results for "${query}"`, 'success');
     } catch (err) {
       console.error('Search failed:', err);
       this.results = [];
+      this._setStatus(`Search failed: ${err.message}`, 'error');
     } finally {
       this.isSearching = false;
       this.isLoadingIndex = false;

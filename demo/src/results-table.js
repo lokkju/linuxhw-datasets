@@ -3,7 +3,17 @@ import { decodeRoaringLimit } from './roaring.js';
 
 const INITIAL_LOAD = 50;
 const LOAD_MORE = 25;
-const EDID_PREVIEW_COUNT = 5;
+const EDID_INITIAL_COUNT = 20;
+const EDID_LOAD_MORE = 20;
+
+// Status event for parent components
+function dispatchStatus(element, message, type = 'info') {
+  element.dispatchEvent(new CustomEvent('status', {
+    detail: { message, type, timestamp: Date.now() },
+    bubbles: true,
+    composed: true,
+  }));
+}
 
 /**
  * Results table with infinite scroll.
@@ -147,19 +157,51 @@ export class ResultsTable extends LitElement {
       font-family: ui-monospace, monospace;
       font-size: 0.6875rem;
       color: var(--color-text-muted, #888);
-      margin-left: auto;
+      min-width: 5.5em;
     }
 
     .edid-error {
       color: var(--color-accent, #e94560);
       font-size: 0.75rem;
       font-style: italic;
+      flex: 1;
+    }
+
+    .retry-btn {
+      padding: 0.25rem 0.5rem;
+      border: 1px solid var(--color-accent, #e94560);
+      background: transparent;
+      color: var(--color-accent, #e94560);
+      border-radius: var(--radius, 4px);
+      font-size: 0.6875rem;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .retry-btn:hover {
+      background: rgba(233, 69, 96, 0.1);
     }
 
     .edid-more {
-      padding: 0.375rem;
+      padding: 0.375rem 0.5rem;
       color: var(--color-text-muted, #888);
       font-size: 0.75rem;
+    }
+
+    .edid-more-btn {
+      padding: 0.375rem 0.75rem;
+      border: 1px solid var(--color-border, #2a2a4e);
+      background: transparent;
+      color: var(--color-text-muted, #888);
+      border-radius: var(--radius, 4px);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .edid-more-btn:hover {
+      background: var(--color-bg, #1a1a2e);
+      color: var(--color-text, #eee);
     }
 
     .error-banner {
@@ -266,34 +308,88 @@ export class ResultsTable extends LitElement {
     this._expandedLoading = true;
     this._expandedError = null;
     this._expandedTotal = 0;
+    this._expandedLoadedCount = 0;
+    this._currentResult = result;
+
+    dispatchStatus(this, `Loading EDIDs for "${result.key}"...`, 'loading');
 
     try {
       const index = await this.indexLoader.load(this.activeTab);
       const bitmapBytes = index.getBitmapBytes(result);
-      const indices = decodeRoaringLimit(bitmapBytes, EDID_PREVIEW_COUNT + 1);
-      this._expandedTotal = indices.length > EDID_PREVIEW_COUNT ? 'many' : indices.length;
+      // Decode all indices (we need the count, and they're just integers)
+      const indices = decodeRoaringLimit(bitmapBytes, 10000);
+      this._expandedTotal = indices.length;
+      this._expandedIndices = indices;
 
-      const edids = [];
-      for (const globalIndex of indices.slice(0, EDID_PREVIEW_COUNT)) {
-        try {
-          const entry = await this.bucketLoader.getByGlobalIndex(globalIndex);
-          edids.push({ ...entry, _error: null });
-        } catch (err) {
-          // Track the error but still show the entry
-          edids.push({
-            _error: err.message || 'Failed to load',
-            _globalIndex: globalIndex,
-            md5Hex: `index-${globalIndex}`,
-          });
-        }
-      }
-
+      const loadCount = Math.min(EDID_INITIAL_COUNT, indices.length);
+      const edids = await this._loadEdids(indices.slice(0, loadCount));
       this._expandedEdids = edids;
+      this._expandedLoadedCount = loadCount;
+
+      const errorCount = edids.filter(e => e._error).length;
+      if (errorCount > 0) {
+        dispatchStatus(this, `Loaded ${edids.length - errorCount}/${edids.length} EDIDs (${errorCount} failed), ${this._expandedTotal} total`, 'warning');
+      } else {
+        dispatchStatus(this, `Loaded ${edids.length} of ${this._expandedTotal} EDIDs`, 'success');
+      }
     } catch (err) {
       console.error('Failed to expand result:', err);
       this._expandedError = err.message || 'Failed to load EDID data';
+      dispatchStatus(this, `Error: ${this._expandedError}`, 'error');
     } finally {
       this._expandedLoading = false;
+    }
+  }
+
+  async _loadMoreEdids() {
+    if (this._expandedLoadedCount >= this._expandedTotal) return;
+
+    const startIdx = this._expandedLoadedCount;
+    const endIdx = Math.min(startIdx + EDID_LOAD_MORE, this._expandedTotal);
+
+    dispatchStatus(this, `Loading more EDIDs (${startIdx + 1}-${endIdx} of ${this._expandedTotal})...`, 'loading');
+
+    const moreEdids = await this._loadEdids(this._expandedIndices.slice(startIdx, endIdx));
+    this._expandedEdids = [...this._expandedEdids, ...moreEdids];
+    this._expandedLoadedCount = endIdx;
+
+    const errorCount = moreEdids.filter(e => e._error).length;
+    if (errorCount > 0) {
+      dispatchStatus(this, `Loaded ${moreEdids.length - errorCount}/${moreEdids.length} more EDIDs (${errorCount} failed)`, 'warning');
+    } else {
+      dispatchStatus(this, `Loaded ${this._expandedLoadedCount} of ${this._expandedTotal} EDIDs`, 'success');
+    }
+  }
+
+  async _loadEdids(indices) {
+    const edids = [];
+    for (const globalIndex of indices) {
+      try {
+        dispatchStatus(this, `Loading bucket for index ${globalIndex}...`, 'loading');
+        const entry = await this.bucketLoader.getByGlobalIndex(globalIndex);
+        edids.push({ ...entry, _error: null, _globalIndex: globalIndex });
+      } catch (err) {
+        edids.push({
+          _error: err.message || 'Failed to load',
+          _globalIndex: globalIndex,
+          md5Hex: `index-${globalIndex}`,
+        });
+      }
+    }
+    return edids;
+  }
+
+  async _retryEdid(globalIndex, listIndex) {
+    dispatchStatus(this, `Retrying index ${globalIndex}...`, 'loading');
+    try {
+      const entry = await this.bucketLoader.getByGlobalIndex(globalIndex);
+      // Update the specific entry in the list
+      this._expandedEdids = this._expandedEdids.map((edid, i) =>
+        i === listIndex ? { ...entry, _error: null, _globalIndex: globalIndex } : edid
+      );
+      dispatchStatus(this, `Successfully loaded index ${globalIndex}`, 'success');
+    } catch (err) {
+      dispatchStatus(this, `Retry failed: ${err.message}`, 'error');
     }
   }
 
@@ -361,25 +457,33 @@ export class ResultsTable extends LitElement {
       return html`<div class="expanded-content"><div class="empty">No EDID entries in bitmap.</div></div>`;
     }
 
+    const hasMore = this._expandedLoadedCount < this._expandedTotal;
+    const remaining = this._expandedTotal - this._expandedLoadedCount;
+
     return html`
       <div class="expanded-content">
         <ul class="edid-list">
-          ${this._expandedEdids.map(edid => this._renderEdid(edid))}
+          ${this._expandedEdids.map((edid, i) => this._renderEdid(edid, i))}
         </ul>
-        ${this._expandedTotal === 'many' || this._expandedTotal > EDID_PREVIEW_COUNT ? html`
-          <div class="edid-more">+ more...</div>
+        ${hasMore ? html`
+          <div class="edid-more">
+            <button class="edid-more-btn" @click=${this._loadMoreEdids}>
+              Load more (${remaining} remaining)
+            </button>
+          </div>
         ` : ''}
       </div>
     `;
   }
 
-  _renderEdid(edid) {
+  _renderEdid(edid, index) {
     // Handle error case
     if (edid._error) {
       return html`
         <li class="edid-item" data-error="true">
-          <span class="edid-error">Failed to load: ${edid._error}</span>
           <span class="edid-hash">#${edid._globalIndex}</span>
+          <span class="edid-error">Failed: ${edid._error}</span>
+          <button class="retry-btn" @click=${() => this._retryEdid(edid._globalIndex, index)}>Retry</button>
         </li>
       `;
     }
@@ -392,15 +496,16 @@ export class ResultsTable extends LitElement {
       ? `${Math.round(Math.sqrt(edid.widthMm**2 + edid.heightMm**2) / 25.4)}"`
       : '';
 
+    // Format: hash | resolution | size | year | type
     return html`
       <li class="edid-item">
+        <span class="edid-hash">${edid.md5Hex.slice(0, 8)}</span>
         <span class="edid-resolution">${resolution}</span>
         <span class="edid-meta">
-          ${edid.year ? html`<span>${edid.year}</span>` : ''}
           ${size ? html`<span>${size}</span>` : ''}
+          ${edid.year ? html`<span>${edid.year}</span>` : ''}
           <span>${edid.displayType}</span>
         </span>
-        <span class="edid-hash">${edid.md5Hex.slice(0, 8)}</span>
       </li>
     `;
   }
