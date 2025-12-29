@@ -189,7 +189,7 @@ export class ParsedIndex {
       return a.key.localeCompare(b.key);
     });
 
-    return matches.slice(0, 100); // Limit results
+    return matches;
   }
 
   /** Get the Roaring bitmap bytes for an entry */
