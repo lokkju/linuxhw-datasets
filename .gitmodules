@@ -1,0 +1,3 @@
+[submodule "upstream/EDID"]
+	path = upstream/EDID
+	url = https://github.com/linuxhw/EDID.git
