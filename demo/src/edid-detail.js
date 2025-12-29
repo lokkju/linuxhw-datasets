@@ -199,6 +199,30 @@ export class EdidDetail extends LitElement {
       color: var(--color-text, #eee);
       font-family: ui-monospace, monospace;
     }
+
+    .decode-warning {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid #fbbf24;
+      border-radius: var(--radius, 4px);
+      color: #fbbf24;
+      font-size: 0.8125rem;
+    }
+
+    .decode-warning strong {
+      display: block;
+      margin-bottom: 0.375rem;
+    }
+
+    .decode-warning ul {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .decode-warning li {
+      margin-bottom: 0.125rem;
+    }
   `;
 
   constructor() {
@@ -252,7 +276,19 @@ export class EdidDetail extends LitElement {
     // Decode raw EDID for additional fields
     const decoded = e.rawEdid ? decodeEdid(e.rawEdid) : {};
 
+    // Check for decoding issues
+    const issues = this._getDecodingIssues(e, decoded);
+
     return html`
+      ${issues.length > 0 ? html`
+        <div class="decode-warning">
+          <strong>Decoding Issues:</strong>
+          <ul>
+            ${issues.map(issue => html`<li>${issue}</li>`)}
+          </ul>
+        </div>
+      ` : ''}
+
       <div class="decoded-section">
         <div class="decoded-title">Identification</div>
         <div class="decoded-grid">
@@ -339,6 +375,42 @@ export class EdidDetail extends LitElement {
     if (!decoded.screenSizeCm?.widthCm || !decoded.screenSizeCm?.heightCm) return '?';
     const inches = Math.sqrt(decoded.screenSizeCm.widthCm ** 2 + decoded.screenSizeCm.heightCm ** 2) / 2.54;
     return `${inches.toFixed(1)}"`;
+  }
+
+  _getDecodingIssues(edid, decoded) {
+    const issues = [];
+
+    if (!edid.rawEdid || edid.rawEdid.length === 0) {
+      issues.push('No raw EDID data available');
+      return issues;
+    }
+
+    if (decoded.error) {
+      issues.push(decoded.error);
+      return issues;
+    }
+
+    if (decoded.headerValid === false) {
+      issues.push('Invalid EDID header (expected 00 FF FF FF FF FF FF 00)');
+    }
+
+    if (decoded.checksumValid === false) {
+      issues.push('Invalid checksum - EDID data may be corrupted');
+    }
+
+    if (!decoded.manufacturerId) {
+      issues.push('Could not decode manufacturer ID');
+    }
+
+    if (!decoded.preferredResolution) {
+      issues.push('No preferred resolution found in timing descriptors');
+    }
+
+    if (decoded.screenSizeCm?.widthCm === 0 && decoded.screenSizeCm?.heightCm === 0) {
+      issues.push('Screen size not specified (0x0 cm)');
+    }
+
+    return issues;
   }
 
   _getHexString(spaced = false) {
