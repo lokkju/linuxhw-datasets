@@ -53,8 +53,20 @@ export class EdidBrowser extends LitElement {
     super.connectedCallback();
     this.indexLoader = new IndexLoader(this.baseUrl);
 
-    // Start loading default index immediately
-    this.indexLoader.load(this.activeTab);
+    // Progressive background loading - smallest/most useful first
+    this._preloadIndexes();
+  }
+
+  async _preloadIndexes() {
+    const loadOrder = ['products', 'vendors', 'sizes', 'codes'];
+
+    for (const name of loadOrder) {
+      try {
+        await this.indexLoader.load(name);
+      } catch (err) {
+        console.warn(`Failed to preload ${name}:`, err);
+      }
+    }
   }
 
   render() {
