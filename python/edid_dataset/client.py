@@ -152,7 +152,7 @@ class EdidDataset:
             height_mm,
             dtype_val,
             flags,
-        ) = struct.unpack_from("<HHHHHHBB2x", bucket, meta_start)
+        ) = struct.unpack_from("<HHHHHHHBB", bucket, meta_start)
 
         # Read offset
         offset_start = offsets_offset + index * 4

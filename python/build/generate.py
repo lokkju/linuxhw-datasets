@@ -181,7 +181,7 @@ def encode_metadata(
     dtype_val = 1 if dtype == "digital" else (0 if dtype == "analog" else 2)
 
     return struct.pack(
-        "<HHHHHHBB2x",
+        "<HHHHHHHBB",
         0,  # vendor_id (TODO)
         0,  # model_id (TODO)
         year_val,
