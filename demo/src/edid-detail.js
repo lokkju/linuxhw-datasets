@@ -160,6 +160,7 @@ export class EdidDetail extends LitElement {
       line-height: 1.5;
       resize: none;
       border-radius: var(--radius, 4px);
+      box-sizing: border-box;
     }
 
     .hex-textarea:focus {
@@ -168,26 +169,29 @@ export class EdidDetail extends LitElement {
     }
 
     .decoded-section {
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
     }
 
     .decoded-title {
-      font-size: 0.75rem;
+      font-size: 0.6875rem;
       color: var(--color-text-muted, #888);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.1em;
       margin-bottom: 0.5rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--color-border, #2a2a4e);
     }
 
     .decoded-grid {
       display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 0.25rem 1rem;
+      grid-template-columns: 100px 1fr;
+      gap: 0.375rem 1rem;
       font-size: 0.8125rem;
     }
 
     .decoded-label {
       color: var(--color-text-muted, #888);
+      text-align: right;
     }
 
     .decoded-value {

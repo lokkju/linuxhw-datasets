@@ -24,10 +24,22 @@ export class SearchTabs extends LitElement {
       display: block;
     }
 
-    .tabs {
+    .tabs-row {
       display: flex;
+      align-items: center;
       border-bottom: 1px solid var(--color-border, #2a2a4e);
       margin-bottom: 0.75rem;
+    }
+
+    .tabs-label {
+      color: var(--color-text-muted, #888);
+      font-size: 0.75rem;
+      padding: 0.5rem 0.75rem 0.5rem 0;
+      white-space: nowrap;
+    }
+
+    .tabs {
+      display: flex;
     }
 
     .tab {
@@ -52,7 +64,7 @@ export class SearchTabs extends LitElement {
     .tab[data-active="true"]::after {
       content: '';
       position: absolute;
-      bottom: -1px;
+      bottom: -9px;
       left: 0;
       right: 0;
       height: 2px;
@@ -211,8 +223,11 @@ export class SearchTabs extends LitElement {
     const currentTab = TABS.find(t => t.id === this.activeTab);
 
     return html`
-      <div class="tabs">
-        ${TABS.map(tab => this._renderTab(tab))}
+      <div class="tabs-row">
+        <span class="tabs-label">Search by</span>
+        <div class="tabs">
+          ${TABS.map(tab => this._renderTab(tab))}
+        </div>
       </div>
       <form class="search-row" @submit=${this._onSearch}>
         <input

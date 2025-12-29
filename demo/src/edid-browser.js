@@ -36,6 +36,39 @@ export class EdidBrowser extends LitElement {
       box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     }
 
+    .header {
+      height: 48px;
+      padding: 0 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-bottom: 1px solid var(--color-border, #2a2a4e);
+      flex-shrink: 0;
+      background: var(--color-surface, #16213e);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .header .count {
+      color: var(--color-text-muted, #888);
+      font-size: 0.8125rem;
+    }
+
+    .header a {
+      color: var(--color-accent, #e94560);
+      text-decoration: none;
+      font-size: 0.8125rem;
+      margin-left: auto;
+    }
+
+    .header a:hover {
+      text-decoration: underline;
+    }
+
     .search-section {
       padding: 0.75rem 1rem;
       background: var(--color-surface, #16213e);
@@ -312,6 +345,11 @@ export class EdidBrowser extends LitElement {
 
   render() {
     return html`
+      <div class="header">
+        <h1>EDID Browser</h1>
+        <span class="count">141,753 monitors</span>
+        <a href="https://github.com/linuxhw/EDID" target="_blank">linuxhw/EDID</a>
+      </div>
       <div class="search-section">
         <search-tabs
           .activeTab=${this.activeTab}

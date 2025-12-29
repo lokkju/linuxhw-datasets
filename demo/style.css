@@ -11,7 +11,6 @@
   --color-text-muted: #888;
   --color-border: #2a2a4e;
   --radius: 4px;
-  --header-height: 48px;
 }
 
 html, body {
@@ -24,45 +23,4 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   background: var(--color-bg);
   color: var(--color-text);
-  display: flex;
-  flex-direction: column;
-}
-
-header {
-  height: var(--header-height);
-  padding: 0 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-header h1 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-header .count {
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
-}
-
-header a {
-  color: var(--color-accent);
-  text-decoration: none;
-  font-size: 0.8125rem;
-  margin-left: auto;
-}
-
-header a:hover {
-  text-decoration: underline;
-}
-
-main {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
 }
