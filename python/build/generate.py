@@ -105,10 +105,13 @@ def generate_compact_files(
     size_stats = build_packed_size_index(
         conn, metadata_dir / "sizes.idx", md5_to_index
     )
+    path_stats = build_path_index(
+        conn, metadata_dir / "paths.idx", md5_to_index
+    )
 
     # Write manifest
     manifest = {
-        "version": 5,
+        "version": 6,
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
         "bucket_counts": stats["bucket_counts"],
@@ -117,6 +120,7 @@ def generate_compact_files(
             "products": product_stats,
             "codes": code_stats,
             "sizes": size_stats,
+            "paths": path_stats,
         },
     }
     (output_path / "manifest.json").write_text(json.dumps(manifest, indent=2))
@@ -465,5 +469,37 @@ def build_packed_size_index(
             if md5_hex in md5_to_index:
                 bitmap.add(md5_to_index[md5_hex])
         entries.append((f"{size:.1f}", bitmap))
+
+    return write_packed_index(output_path, entries)
+
+
+def build_path_index(
+    conn: duckdb.DuckDBPyConnection,
+    output_path: Path,
+    md5_to_index: dict[str, int],
+) -> dict:
+    """Build a packed index for source paths (directory portion only).
+
+    Paths like "Digital/Dell/DEL4080/abc123" become "Digital/Dell/DEL4080".
+    This allows browsing by the linuxhw/EDID repository structure.
+    """
+    # Extract directory path (remove the hash filename at the end)
+    result = conn.execute("""
+        SELECT
+            regexp_replace(source_path, '/[^/]+$', '') as dir_path,
+            LIST(md5_hex ORDER BY md5_hex)
+        FROM edids
+        WHERE source_path IS NOT NULL
+        GROUP BY dir_path
+        ORDER BY dir_path
+    """).fetchall()
+
+    entries = []
+    for path, md5_list in result:
+        bitmap = BitMap()
+        for md5_hex in md5_list:
+            if md5_hex in md5_to_index:
+                bitmap.add(md5_to_index[md5_hex])
+        entries.append((path, bitmap))
 
     return write_packed_index(output_path, entries)

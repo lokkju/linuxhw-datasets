@@ -5,6 +5,7 @@ const TABS = [
   { id: 'vendors', label: 'Vendor', size: '254 KB', placeholder: 'e.g., Dell, Samsung' },
   { id: 'codes', label: 'PNP Code', size: '1.2 MB', placeholder: 'e.g., DEL01101, SAM0A7C' },
   { id: 'sizes', label: 'Screen Size', size: '228 KB', placeholder: 'e.g., 27, 32' },
+  { id: 'paths', label: 'Path', size: '1.7 MB', placeholder: 'e.g., Digital/Dell, Analog/Samsung' },
 ];
 
 /**

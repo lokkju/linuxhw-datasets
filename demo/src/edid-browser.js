@@ -64,7 +64,7 @@ export class EdidBrowser extends LitElement {
   }
 
   async _preloadIndexes() {
-    const loadOrder = ['products', 'vendors', 'sizes', 'codes'];
+    const loadOrder = ['products', 'vendors', 'sizes', 'codes', 'paths'];
 
     for (const name of loadOrder) {
       try {
