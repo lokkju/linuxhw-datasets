@@ -27,12 +27,24 @@ export function decodeRoaring(data) {
   let hasRunContainers = false;
   let hasOffsetHeader = false;
 
-  if ((cookie & 0xFFFF) === SERIAL_COOKIE_NO_RUNCONTAINER) {
-    // Native format without run containers
+  if (cookie === SERIAL_COOKIE_NO_RUNCONTAINER) {
+    // pyroaring format: cookie is exactly 12346, container count follows
+    // pyroaring always includes offset headers
+    numContainers = view.getUint32(offset, true);
+    offset += 4;
+    hasOffsetHeader = true; // pyroaring always has offsets
+  } else if (cookie === SERIAL_COOKIE) {
+    // Format with run containers
+    numContainers = view.getUint32(offset, true);
+    offset += 4;
+    hasRunContainers = true;
+    hasOffsetHeader = true; // pyroaring always has offsets
+  } else if ((cookie & 0xFFFF) === SERIAL_COOKIE_NO_RUNCONTAINER) {
+    // Standard portable format: count encoded in upper 16 bits
     numContainers = (cookie >> 16) + 1;
     hasOffsetHeader = numContainers >= NO_OFFSET_THRESHOLD;
   } else if ((cookie & 0xFFFF) === SERIAL_COOKIE) {
-    // Native format with run containers
+    // Standard portable format with run containers
     numContainers = (cookie >> 16) + 1;
     hasRunContainers = true;
     hasOffsetHeader = numContainers >= NO_OFFSET_THRESHOLD;
