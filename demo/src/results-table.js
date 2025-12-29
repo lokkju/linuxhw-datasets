@@ -288,7 +288,12 @@ export class ResultsTable extends LitElement {
       this._expandedEdids = [];
       this._expandedError = null;
       this._countCache.clear();
+      // Scroll to top when results change
+      this.scrollTop = 0;
       // Precompute counts for visible results
+      this._computeCounts();
+    } else if (changedProps.has('_visibleCount')) {
+      // Compute counts for newly visible results
       this._computeCounts();
     }
   }
