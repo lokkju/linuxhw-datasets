@@ -1,0 +1,58 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 06 af 3c 10 00 00 00 00
+00 17 01 04 90 1f 11 78 02 bb f5 94 55 54 90 27
+23 50 54 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 c0 1c 56 a0 50 00 23 30 26 16
+36 00 35 ad 10 00 00 1a 2b 13 56 a0 50 00 23 30
+26 16 36 00 35 ad 10 00 00 1a 00 00 00 fe 00 56
+58 4b 4a 58 80 42 31 34 30 58 54 54 00 00 00 00
+00 00 41 22 96 01 11 00 00 01 01 0a 20 20 00 a5
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: AUO
+    Model: 4156
+    Made in: 2013
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 6
+    Digital interface is not defined
+    Maximum image size: 31 cm x 17 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+  Color Characteristics:
+    Red  : 0.5800, 0.3349
+    Green: 0.3300, 0.5654
+    Blue : 0.1552, 0.1396
+    White: 0.3134, 0.3291
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1366x768    60.063099 Hz 683:384   48.231 kHz     73.600000 MHz (309 mm x 173 mm)
+                 Hfront   38 Hsync  22 Hback  100 Hpol P
+                 Vfront    3 Vsync   6 Vback   26 Vpol N
+    DTD 2:  1366x768    40.044786 Hz 683:384   32.156 kHz     49.070000 MHz (309 mm x 173 mm)
+                 Hfront   38 Hsync  22 Hback  100 Hpol P
+                 Vfront    3 Vsync   6 Vback   26 Vpol N
+    Alphanumeric Data String: 'VXKJX'
+    Manufacturer-Specified Display Descriptor (0x00): 00 00 00 00 41 22 96 01 11 00 00 01 01 0a 20 20 '....A"........  '
+Checksum: 0xa5
+
+----------------
+
+Warnings:
+
+Block 0, Base EDID:
+  Missing Display Product Name.
+
+Failures:
+
+Block 0, Base EDID:
+  Alphanumeric Data String: Non-printable character.
+
+EDID conformity: FAIL

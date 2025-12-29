@@ -1,0 +1,58 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 0d af a3 15 00 00 00 00
+0a 15 01 04 90 22 13 78 02 00 25 9e 57 52 99 29
+15 50 54 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 54 1b 56 6e 50 00 16 30 0e 1d
+27 00 58 c2 10 00 00 1a bb 12 56 8c 50 00 1c 30
+12 25 39 00 58 c2 10 00 00 1a 00 00 00 fe 00 35
+46 4e 4a 58 80 31 35 36 42 47 45 0a 00 00 00 00
+00 00 41 31 96 00 00 00 00 01 01 0a 20 20 00 29
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: CMO
+    Model: 5539
+    Made in: week 10 of 2011
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 6
+    Digital interface is not defined
+    Maximum image size: 34 cm x 19 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+  Color Characteristics:
+    Red  : 0.6171, 0.3398
+    Green: 0.3203, 0.5976
+    Blue : 0.1601, 0.0839
+    White: 0.3134, 0.3291
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1366x768    59.997942 Hz 683:384   47.398 kHz     69.960000 MHz (344 mm x 194 mm)
+                 Hfront   14 Hsync  29 Hback   67 Hpol P
+                 Vfront    2 Vsync   7 Vback   13 Vpol N
+    DTD 2:  1366x768    39.999132 Hz 683:384   31.839 kHz     47.950000 MHz (344 mm x 194 mm)
+                 Hfront   18 Hsync  37 Hback   85 Hpol P
+                 Vfront    3 Vsync   9 Vback   16 Vpol N
+    Alphanumeric Data String: '5FNJX'
+    Manufacturer-Specified Display Descriptor (0x00): 00 00 00 00 41 31 96 00 00 00 00 01 01 0a 20 20 '....A1........  '
+Checksum: 0x29
+
+----------------
+
+Warnings:
+
+Block 0, Base EDID:
+  Missing Display Product Name.
+
+Failures:
+
+Block 0, Base EDID:
+  Alphanumeric Data String: Non-printable character.
+
+EDID conformity: FAIL

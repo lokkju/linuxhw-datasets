@@ -1,0 +1,58 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 09 e5 dc 06 00 00 00 00
+01 1a 01 04 a5 1a 11 78 0a de 50 a3 54 4c 99 26
+0f 50 54 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 60 3f 80 a0 70 00 14 50 30 20
+84 00 03 ad 10 00 00 1a b3 32 80 a0 70 00 14 50
+30 20 84 00 03 ad 10 00 00 1a 00 00 00 fe 00 30
+4b 4b 38 58 80 54 56 31 32 4e 44 30 00 00 00 00
+00 02 41 01 28 05 01 00 00 0a 01 0a 20 20 00 9f
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: BOE
+    Model: 1756
+    Made in: week 1 of 2016
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 8
+    DisplayPort interface
+    Maximum image size: 26 cm x 17 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4, YCrCb 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+  Color Characteristics:
+    Red  : 0.6396, 0.3291
+    Green: 0.2998, 0.5996
+    Blue : 0.1494, 0.0595
+    White: 0.3125, 0.3281
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1920x1280   60.000000 Hz   3:2     78.000 kHz    162.240000 MHz (259 mm x 173 mm)
+                 Hfront   48 Hsync  32 Hback   80 Hpol P
+                 Vfront    8 Vsync   4 Vback    8 Vpol N
+    DTD 2:  1920x1280   47.999260 Hz   3:2     62.399 kHz    129.790000 MHz (259 mm x 173 mm)
+                 Hfront   48 Hsync  32 Hback   80 Hpol P
+                 Vfront    8 Vsync   4 Vback    8 Vpol N
+    Alphanumeric Data String: '0KK8X'
+    Manufacturer-Specified Display Descriptor (0x00): 00 00 00 02 41 01 28 05 01 00 00 0a 01 0a 20 20 '....A.(.......  '
+Checksum: 0x9f
+
+----------------
+
+Warnings:
+
+Block 0, Base EDID:
+  Missing Display Product Name.
+
+Failures:
+
+Block 0, Base EDID:
+  Alphanumeric Data String: Non-printable character.
+
+EDID conformity: FAIL

@@ -1,0 +1,60 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 06 af 5d 32 00 00 00 00
+01 16 01 04 95 1a 0e 78 ea ac f5 98 58 52 95 25
+20 50 54 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 1d 36 80 a0 70 38 1e 40 30 20
+8e 00 00 90 10 00 00 18 18 2d 80 a0 70 38 1e 40
+30 20 8e 00 00 90 10 00 00 18 00 00 00 fe 00 41
+55 4f 5e 20 20 20 20 20 20 20 20 20 00 00 00 fe
+00 42 31 31 36 48 41 54 30 33 2e 32 20 0a 00 03
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: AUO
+    Model: 12893
+    Made in: week 1 of 2012
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 6
+    DisplayPort interface
+    Maximum image size: 26 cm x 14 cm
+    Gamma: 2.20
+    DPMS levels: Standby Suspend Off
+    Supported color formats: RGB 4:4:4, YCrCb 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+  Color Characteristics:
+    Red  : 0.5957, 0.3457
+    Green: 0.3232, 0.5820
+    Blue : 0.1474, 0.1279
+    White: 0.3134, 0.3291
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1920x1080   60.000866 Hz  16:9     66.601 kHz    138.530000 MHz (256 mm x 144 mm)
+                 Hfront   48 Hsync  32 Hback   80 Hpol N
+                 Vfront    8 Vsync  14 Vback    8 Vpol N
+    DTD 2:  1920x1080   50.000000 Hz  16:9     55.500 kHz    115.440000 MHz (256 mm x 144 mm)
+                 Hfront   48 Hsync  32 Hback   80 Hpol N
+                 Vfront    8 Vsync  14 Vback    8 Vpol N
+    Alphanumeric Data String: 'AUO^         '
+    Alphanumeric Data String: 'B116HAT03.2 '
+Checksum: 0x03
+
+----------------
+
+Warnings:
+
+Block 0, Base EDID:
+  Missing Display Product Name.
+
+Failures:
+
+Block 0, Base EDID:
+  Alphanumeric Data String: One or more trailing spaces.
+  Alphanumeric Data String: One or more trailing spaces.
+
+EDID conformity: FAIL

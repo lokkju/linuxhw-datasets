@@ -1,0 +1,51 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 0d af 09 03 00 00 00 00
+2d 12 01 03 90 15 0c 78 0a b9 85 95 5c 59 95 27
+1b 50 54 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 94 11 00 b0 40 58 19 20 35 23
+36 00 c3 71 00 00 00 18 00 00 00 fe 00 4e 30 38
+39 4c 36 2d 4c 30 33 0a 20 20 00 00 00 fe 00 43
+4d 4f 0a 20 20 20 20 20 20 20 20 20 00 00 00 fe
+00 4e 30 38 39 4c 36 2d 4c 30 33 0a 20 20 00 84
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.3
+  Vendor & Product Identification:
+    Manufacturer: CMO
+    Model: 777
+    Made in: week 45 of 2008
+  Basic Display Parameters & Features:
+    Digital display
+    Maximum image size: 21 cm x 12 cm
+    Gamma: 2.20
+    RGB color display
+    First detailed timing is the preferred timing
+  Color Characteristics:
+    Red  : 0.5839, 0.3623
+    Green: 0.3496, 0.5830
+    Blue : 0.1542, 0.1054
+    White: 0.3134, 0.3291
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1024x600    60.000000 Hz 128:75    37.500 kHz     45.000000 MHz (195 mm x 113 mm)
+                 Hfront   53 Hsync  35 Hback   88 Hpol N
+                 Vfront    3 Vsync   6 Vback   16 Vpol N
+    Alphanumeric Data String: 'N089L6-L03'
+    Alphanumeric Data String: 'CMO'
+    Alphanumeric Data String: 'N089L6-L03'
+Checksum: 0x84
+
+----------------
+
+Failures:
+
+Block 0, Base EDID:
+  Basic Display Parameters & Features: Digital Video Interface Standard set to reserved value 0x10.
+  Missing Display Product Name.
+  Missing Display Range Limits Descriptor.
+
+EDID conformity: FAIL
