@@ -1,15 +1,15 @@
 import { LitElement, html, css } from 'lit';
 
 const TABS = [
-  { id: 'products', label: 'Product Name', size: '802 KB', placeholder: 'e.g., U2412M, 27GL850' },
-  { id: 'vendors', label: 'Vendor', size: '254 KB', placeholder: 'e.g., Dell, Samsung' },
-  { id: 'codes', label: 'PNP Code', size: '1.2 MB', placeholder: 'e.g., DEL01101, SAM0A7C' },
-  { id: 'sizes', label: 'Screen Size', size: '228 KB', placeholder: 'e.g., 27, 32' },
-  { id: 'paths', label: 'Path', size: '1.7 MB', placeholder: 'e.g., Digital/Dell, Analog/Samsung' },
+  { id: 'products', label: 'Products', placeholder: 'e.g., U2412M, 27GL850' },
+  { id: 'vendors', label: 'Vendors', placeholder: 'e.g., Dell, Samsung' },
+  { id: 'codes', label: 'PNP Codes', placeholder: 'e.g., DEL01101, SAM0A7C' },
+  { id: 'sizes', label: 'Sizes', placeholder: 'e.g., 27, 32' },
+  { id: 'paths', label: 'Paths', placeholder: 'e.g., Digital/Dell, Analog' },
 ];
 
 /**
- * Search tabs component with loading indicators.
+ * Search tabs component with traditional underline-style tabs.
  */
 export class SearchTabs extends LitElement {
   static properties = {
@@ -26,112 +26,94 @@ export class SearchTabs extends LitElement {
 
     .tabs {
       display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--color-border, #2a2a4e);
+      margin-bottom: 0.75rem;
     }
 
     .tab {
-      flex: 1;
-      padding: 0.75rem 1rem;
+      padding: 0.5rem 1rem;
       border: none;
-      background: var(--color-primary);
-      color: var(--color-text);
-      border-radius: var(--radius);
+      background: transparent;
+      color: var(--color-text-muted, #888);
+      font-size: 0.8125rem;
       cursor: pointer;
-      font-size: 0.875rem;
-      transition: background 0.15s, opacity 0.15s;
       position: relative;
-      overflow: hidden;
+      transition: color 0.15s;
     }
 
     .tab:hover {
-      background: var(--color-accent);
+      color: var(--color-text, #eee);
     }
 
     .tab[data-active="true"] {
-      background: var(--color-accent);
+      color: var(--color-text, #eee);
     }
 
-    .tab-label {
-      display: block;
-      font-weight: 500;
-    }
-
-    .tab-size {
-      display: block;
-      font-size: 0.75rem;
-      opacity: 0.7;
-      margin-top: 0.25rem;
+    .tab[data-active="true"]::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--color-accent, #e94560);
     }
 
     .tab-progress {
-      position: absolute;
-      top: 0.25rem;
-      right: 0.25rem;
-      height: 1.25rem;
-      width: 3.5rem;
-      background: rgba(0,0,0,0.4);
-      border-radius: 3px;
-      overflow: hidden;
-      font-size: 0.625rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-left: 0.375rem;
+      border-radius: 50%;
+      vertical-align: middle;
     }
 
-    .tab-progress-bar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      background: var(--color-accent);
-      transition: width 0.15s ease-out;
-      opacity: 0.7;
+    .tab-progress[data-state="loading"] {
+      background: var(--color-accent, #e94560);
+      animation: pulse 1s ease-in-out infinite;
     }
 
-    .tab-progress-bar[data-loaded="true"] {
-      background: #4ade80; /* green when fully loaded */
+    .tab-progress[data-state="loaded"] {
+      background: #4ade80;
     }
 
-    .tab-progress-text {
-      position: relative;
-      z-index: 1;
-      color: white;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
     }
 
-    .search-box {
+    .search-row {
       display: flex;
       gap: 0.5rem;
     }
 
     .search-input {
       flex: 1;
-      padding: 0.75rem 1rem;
-      border: 2px solid var(--color-primary);
-      background: var(--color-bg);
-      color: var(--color-text);
-      border-radius: var(--radius);
-      font-size: 1rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--color-border, #2a2a4e);
+      background: var(--color-surface, #16213e);
+      color: var(--color-text, #eee);
+      border-radius: var(--radius, 4px);
+      font-size: 0.875rem;
       outline: none;
       transition: border-color 0.15s;
     }
 
     .search-input:focus {
-      border-color: var(--color-accent);
+      border-color: var(--color-accent, #e94560);
     }
 
     .search-input::placeholder {
-      color: var(--color-text-muted);
+      color: var(--color-text-muted, #888);
     }
 
     .search-btn {
-      padding: 0.75rem 1.5rem;
+      padding: 0.5rem 1rem;
       border: none;
-      background: var(--color-accent);
-      color: var(--color-text);
-      border-radius: var(--radius);
-      font-size: 1rem;
+      background: var(--color-accent, #e94560);
+      color: white;
+      border-radius: var(--radius, 4px);
+      font-size: 0.875rem;
       cursor: pointer;
       transition: opacity 0.15s;
     }
@@ -187,37 +169,13 @@ export class SearchTabs extends LitElement {
   }
 
   _getTabState(tabId) {
-    if (!this.indexLoader) return { state: 'idle', loaded: 0, total: 0 };
+    if (!this.indexLoader) return 'idle';
 
-    // Prefer local state for reactive updates (includes both loading and loaded)
     const localState = this._loadingStates[tabId];
-    if (localState) {
-      return {
-        state: localState.state,
-        loaded: localState.loaded,
-        total: localState.total,
-      };
-    }
+    if (localState) return localState.state;
 
-    // Fall back to indexLoader state (for already-loaded indexes on page refresh, etc.)
     const state = this.indexLoader.getState(tabId);
-    const progress = this.indexLoader.getProgress(tabId);
-
-    if (state === 'loaded') {
-      return { state: 'loaded', loaded: progress.total || 1, total: progress.total || 1 };
-    }
-
-    if (state === 'loading') {
-      return { state: 'loading', loaded: progress.loaded || 0, total: progress.total || 0 };
-    }
-
-    return { state: 'idle', loaded: 0, total: 0 };
-  }
-
-  _formatBytes(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return state;
   }
 
   _onTabClick(tabId) {
@@ -230,7 +188,6 @@ export class SearchTabs extends LitElement {
         composed: true,
       }));
 
-      // Preload index when tab is clicked
       if (this.indexLoader) {
         this.indexLoader.load(tabId);
       }
@@ -257,7 +214,7 @@ export class SearchTabs extends LitElement {
       <div class="tabs">
         ${TABS.map(tab => this._renderTab(tab))}
       </div>
-      <form class="search-box" @submit=${this._onSearch}>
+      <form class="search-row" @submit=${this._onSearch}>
         <input
           type="text"
           class="search-input"
@@ -272,24 +229,8 @@ export class SearchTabs extends LitElement {
 
   _renderTab(tab) {
     const isActive = this.activeTab === tab.id;
-    const { state, loaded, total } = this._getTabState(tab.id);
-    const isLoaded = state === 'loaded';
-    const isLoading = state === 'loading';
-
-    let progress = 0;
-    if (isLoaded) {
-      progress = 100;
-    } else if (isLoading && total > 0) {
-      progress = (loaded / total) * 100;
-    }
-
-    // Text to show in progress badge
-    let progressText = '';
-    if (isLoaded) {
-      progressText = 'ready';
-    } else if (isLoading) {
-      progressText = `${Math.round(progress)}%`;
-    }
+    const state = this._getTabState(tab.id);
+    const showIndicator = state === 'loading' || state === 'loaded';
 
     return html`
       <button
@@ -297,18 +238,7 @@ export class SearchTabs extends LitElement {
         data-active=${isActive}
         @click=${() => this._onTabClick(tab.id)}
       >
-        <span class="tab-label">${tab.label}</span>
-        <span class="tab-size">${tab.size}</span>
-        ${isLoading || isLoaded ? html`
-          <div class="tab-progress">
-            <div
-              class="tab-progress-bar"
-              data-loaded=${isLoaded}
-              style="width: ${progress}%"
-            ></div>
-            <span class="tab-progress-text">${progressText}</span>
-          </div>
-        ` : ''}
+        ${tab.label}${showIndicator ? html`<span class="tab-progress" data-state=${state}></span>` : ''}
       </button>
     `;
   }

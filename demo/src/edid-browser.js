@@ -20,22 +20,24 @@ export class EdidBrowser extends LitElement {
 
   static styles = css`
     :host {
-      display: block;
-    }
-
-    .container {
-      background: var(--color-surface);
-      border-radius: var(--radius);
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
     }
 
     .search-section {
-      padding: 1rem;
-      border-bottom: 1px solid var(--color-primary);
+      padding: 0.75rem 1rem;
+      background: var(--color-surface, #16213e);
+      border-bottom: 1px solid var(--color-border, #2a2a4e);
+      flex-shrink: 0;
     }
 
     .results-section {
-      min-height: 400px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--color-bg, #1a1a2e);
     }
   `;
 
@@ -77,25 +79,23 @@ export class EdidBrowser extends LitElement {
 
   render() {
     return html`
-      <div class="container">
-        <div class="search-section">
-          <search-tabs
-            .activeTab=${this.activeTab}
-            .indexLoader=${this.indexLoader}
-            @tab-change=${this._onTabChange}
-            @search=${this._onSearch}
-          ></search-tabs>
-        </div>
-        <div class="results-section">
-          <results-table
-            .results=${this.results}
-            .isLoading=${this.isSearching}
-            .isLoadingIndex=${this.isLoadingIndex}
-            .indexLoader=${this.indexLoader}
-            .bucketLoader=${this.bucketLoader}
-            .activeTab=${this.activeTab}
-          ></results-table>
-        </div>
+      <div class="search-section">
+        <search-tabs
+          .activeTab=${this.activeTab}
+          .indexLoader=${this.indexLoader}
+          @tab-change=${this._onTabChange}
+          @search=${this._onSearch}
+        ></search-tabs>
+      </div>
+      <div class="results-section">
+        <results-table
+          .results=${this.results}
+          .isLoading=${this.isSearching}
+          .isLoadingIndex=${this.isLoadingIndex}
+          .indexLoader=${this.indexLoader}
+          .bucketLoader=${this.bucketLoader}
+          .activeTab=${this.activeTab}
+        ></results-table>
       </div>
     `;
   }
