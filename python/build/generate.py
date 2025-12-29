@@ -43,7 +43,7 @@ def get_upstream_info(upstream_path: Path) -> dict:
 
 # Bucket file format constants
 BUCKET_MAGIC = b"EDIB"
-BUCKET_VERSION = 2  # v2: removed metadata section, just keys + raw EDID
+BUCKET_VERSION = 3  # v3: 6-byte linuxhw ID instead of 16-byte MD5
 
 # Packed index file format constants
 INDEX_MAGIC = b"EIDX"
@@ -142,6 +142,9 @@ def generate_compact_files(
         conn, metadata_dir / "paths.idx", md5_to_index
     )
 
+    # Generate vendors.json for GitHub path computation
+    vendors_stats = generate_vendors_json(conn, output_path / "vendors.json")
+
     # Get upstream info if path provided
     upstream_info = None
     if upstream_path:
@@ -149,7 +152,8 @@ def generate_compact_files(
 
     # Write manifest
     manifest = {
-        "version": 7,
+        "version": 8,  # v8: bucket format v3 with 6-byte IDs + vendors.json
+        "bucket_format": 3,  # Explicit bucket format version
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
         "bucket_counts": stats["bucket_counts"],
@@ -161,6 +165,7 @@ def generate_compact_files(
             "sizes": size_stats,
             "paths": path_stats,
         },
+        "vendor_mapping": vendors_stats,
     }
     if upstream_info:
         manifest["upstream"] = upstream_info
@@ -172,15 +177,19 @@ def generate_compact_files(
 
 
 def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
-    """Write a single bucket file (v2 format: keys + raw EDID only)."""
-    # Sort entries by remaining 15 bytes of MD5
-    entries.sort(key=lambda e: e[0][1:])
+    """Write a single bucket file (v3 format: 6-byte linuxhw ID + raw EDID).
+
+    v3 format uses 6-byte IDs (first 6 bytes of MD5) instead of full 16-byte MD5.
+    This matches the linuxhw/EDID filename format: MD5[:12].upper()
+    """
+    # Sort entries by remaining 5 bytes of ID (first byte is bucket prefix)
+    entries.sort(key=lambda e: e[0][1:6])
 
     entry_count = len(entries)
 
-    # Calculate offsets (v2: no metadata section)
+    # Calculate offsets (v3: 5 bytes per key instead of 15)
     header_size = 16
-    keys_size = entry_count * 15  # 15 bytes per key (excluding prefix)
+    keys_size = entry_count * 5  # 5 bytes per key (excluding prefix byte)
     offsets_size = entry_count * 4  # 4 bytes per offset
 
     values_offset = header_size + keys_size + offsets_size
@@ -195,10 +204,10 @@ def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
     data.extend(struct.pack("<I", values_offset))
     data.extend(b"\x00" * 4)  # Reserved
 
-    # Keys (15 bytes each, remaining bytes of MD5)
+    # Keys (5 bytes each, bytes 1-5 of 6-byte ID, byte 0 is bucket prefix)
     for entry in entries:
         md5_hash = entry[0]
-        data.extend(md5_hash[1:])  # Skip first byte (bucket prefix)
+        data.extend(md5_hash[1:6])  # Bytes 1-5 of MD5 (6-byte ID minus prefix)
 
     # Build values section and offsets
     values_section = bytearray()
@@ -227,6 +236,30 @@ def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
     data.extend(values_section)
 
     path.write_bytes(bytes(data))
+
+
+def generate_vendors_json(conn: duckdb.DuckDBPyConnection, output_path: Path) -> dict:
+    """Generate vendors.json mapping EISA codes to human-readable vendor names.
+
+    This mapping allows computing full GitHub paths from EDID data:
+    {type}/{vendor_name}/{model}/{id}
+    """
+    # Get all unique vendor code -> path_vendor mappings
+    result = conn.execute("""
+        SELECT DISTINCT vendor as code, path_vendor as name
+        FROM edids
+        WHERE vendor IS NOT NULL AND path_vendor IS NOT NULL
+        ORDER BY vendor
+    """).fetchall()
+
+    mapping = {code: name for code, name in result}
+
+    output_path.write_text(json.dumps(mapping, indent=2, sort_keys=True))
+
+    return {
+        "count": len(mapping),
+        "bytes": output_path.stat().st_size,
+    }
 
 
 def write_packed_index(output_path: Path, entries: list[tuple[str, BitMap]]) -> dict:

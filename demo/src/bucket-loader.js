@@ -1,12 +1,16 @@
 /**
  * Bucket file loader and parser.
  *
- * Bucket format v2 (simplified - all decoding done client-side):
+ * Bucket format v3 (6-byte linuxhw ID):
  *   Header (16 bytes): magic(4) + version(2) + count(2) + values_offset(4) + reserved(4)
- *   Keys (15 bytes each): remaining bytes of MD5 hash
+ *   Keys (5 bytes each): bytes 1-5 of 6-byte ID (byte 0 is bucket prefix)
  *   Offsets (4 bytes each): packed offset + length
  *   Values: raw EDID bytes, 4-byte aligned
+ *
+ * The 6-byte ID matches linuxhw/EDID filename format: MD5(hex)[:12].upper()
  */
+
+import { computeGitHubUrl } from './edid-utils.js';
 
 const BUCKET_MAGIC = 0x42494445; // "EDIB" little-endian
 
@@ -17,6 +21,7 @@ export class BucketLoader {
     this.loading = new Map(); // prefix -> Promise
     this.manifest = null;
     this.bucketOffsets = null; // cumulative offsets for global index lookup
+    this.vendorMapping = null; // vendor code -> name mapping
   }
 
   /**
@@ -40,7 +45,41 @@ export class BucketLoader {
       this.bucketOffsets[i + 1] = this.bucketOffsets[i] + counts[i];
     }
 
+    // Load vendor mapping if available (for GitHub URL computation)
+    if (this.manifest.vendor_mapping) {
+      this._loadVendorMapping(); // Don't await - load in background
+    }
+
     return this.manifest;
+  }
+
+  /**
+   * Load vendor code to name mapping (for GitHub URL computation).
+   */
+  async _loadVendorMapping() {
+    if (this.vendorMapping) return this.vendorMapping;
+
+    try {
+      const response = await fetch(`${this.baseUrl}vendors.json`);
+      if (response.ok) {
+        this.vendorMapping = await response.json();
+      }
+    } catch (err) {
+      console.warn('Failed to load vendor mapping:', err);
+      this.vendorMapping = {};
+    }
+
+    return this.vendorMapping;
+  }
+
+  /**
+   * Get GitHub URL for an EDID entry.
+   * @param {Uint8Array} edidBytes - Raw EDID bytes
+   * @param {string} id - 12-char linuxhw ID
+   * @returns {string|null} GitHub URL or null if not available
+   */
+  getGitHubUrl(edidBytes, id) {
+    return computeGitHubUrl(edidBytes, id, this.vendorMapping || {});
   }
 
   /**
@@ -136,41 +175,46 @@ export class ParsedBucket {
     this.entryCount = this.view.getUint16(6, true);
     this.valuesOffset = this.view.getUint32(8, true);
 
-    // Calculate section offsets
+    // Calculate section offsets based on version
     this.headerSize = 16;
     this.keysOffset = this.headerSize;
-    this.keysSize = this.entryCount * 15;
 
-    if (this.version === 1) {
-      // v1: has metadata section (16 bytes per entry)
-      this.metadataOffset = this.keysOffset + this.keysSize;
-      this.metadataSize = this.entryCount * 16;
-      this.offsetsOffset = this.metadataOffset + this.metadataSize;
-    } else {
-      // v2+: no metadata section
+    if (this.version >= 3) {
+      // v3+: 5 bytes per key (6-byte ID minus prefix)
+      this.keySize = 5;
+      this.keysSize = this.entryCount * 5;
       this.metadataOffset = null;
       this.metadataSize = 0;
       this.offsetsOffset = this.keysOffset + this.keysSize;
+    } else if (this.version === 2) {
+      // v2: 15 bytes per key (16-byte MD5 minus prefix)
+      this.keySize = 15;
+      this.keysSize = this.entryCount * 15;
+      this.metadataOffset = null;
+      this.metadataSize = 0;
+      this.offsetsOffset = this.keysOffset + this.keysSize;
+    } else {
+      // v1: 15 bytes per key + metadata section
+      this.keySize = 15;
+      this.keysSize = this.entryCount * 15;
+      this.metadataOffset = this.keysOffset + this.keysSize;
+      this.metadataSize = this.entryCount * 16;
+      this.offsetsOffset = this.metadataOffset + this.metadataSize;
     }
   }
 
   /**
    * Get entry at local index.
-   * Returns just md5 hash and raw EDID bytes - all decoding done client-side.
+   * Returns ID (6 or 16 bytes depending on version) and raw EDID bytes.
    */
   getEntry(index) {
     if (index < 0 || index >= this.entryCount) {
       throw new Error(`Index ${index} out of range (0-${this.entryCount - 1})`);
     }
 
-    // Read key (15 bytes)
-    const keyStart = this.keysOffset + index * 15;
-    const keyBytes = this.buffer.slice(keyStart, keyStart + 15);
-
-    // Reconstruct full MD5 hash
-    const md5 = new Uint8Array(16);
-    md5[0] = this.prefix;
-    md5.set(keyBytes, 1);
+    // Read key bytes
+    const keyStart = this.keysOffset + index * this.keySize;
+    const keyBytes = this.buffer.slice(keyStart, keyStart + this.keySize);
 
     // Read offset + length
     const offsetStart = this.offsetsOffset + index * 4;
@@ -182,11 +226,33 @@ export class ParsedBucket {
     const edidStart = this.valuesOffset + valueOffset;
     const rawEdid = this.buffer.slice(edidStart, edidStart + valueLength);
 
-    return {
-      md5,
-      md5Hex: Array.from(md5).map(b => b.toString(16).padStart(2, '0')).join(''),
-      rawEdid,
-    };
+    if (this.version >= 3) {
+      // v3+: 6-byte ID (linuxhw format)
+      const id = new Uint8Array(6);
+      id[0] = this.prefix;
+      id.set(keyBytes, 1);
+
+      // 12-char uppercase hex ID (matches linuxhw filename)
+      const idHex = Array.from(id).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+
+      return {
+        id,
+        idHex,      // 12-char linuxhw ID (e.g., "A03BAE7BABED")
+        md5Hex: idHex,  // Alias for backward compatibility
+        rawEdid,
+      };
+    } else {
+      // v1/v2: 16-byte MD5 hash
+      const md5 = new Uint8Array(16);
+      md5[0] = this.prefix;
+      md5.set(keyBytes, 1);
+
+      return {
+        md5,
+        md5Hex: Array.from(md5).map(b => b.toString(16).padStart(2, '0')).join(''),
+        rawEdid,
+      };
+    }
   }
 
   /**

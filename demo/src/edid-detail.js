@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit';
+import { computeGitHubUrl } from './edid-utils.js';
 import './edid-viewer.js';
 
 /**
@@ -6,13 +7,15 @@ import './edid-viewer.js';
  * Accepts the browser's edid object format and passes data to edid-viewer.
  *
  * @element edid-detail
- * @prop {Object} edid - EDID entry from bucket loader ({ md5Hex, rawEdid, _globalIndex })
+ * @prop {Object} edid - EDID entry from bucket loader ({ idHex/md5Hex, rawEdid, _globalIndex })
+ * @prop {Object} vendorMapping - Vendor code to name mapping for GitHub URLs
  * @prop {Boolean} mobile - Shows back button in mobile view
  * @fires back - Dispatched when back button is clicked
  */
 export class EdidDetail extends LitElement {
   static properties = {
     edid: { type: Object },
+    vendorMapping: { type: Object, attribute: false },
     mobile: { type: Boolean, reflect: true },
   };
 
@@ -42,7 +45,15 @@ export class EdidDetail extends LitElement {
   constructor() {
     super();
     this.edid = null;
+    this.vendorMapping = {};
     this.mobile = false;
+  }
+
+  _getGitHubUrl() {
+    if (!this.edid?.rawEdid) return null;
+    const id = this.edid.idHex || this.edid.md5Hex;
+    if (!id) return null;
+    return computeGitHubUrl(this.edid.rawEdid, id, this.vendorMapping || {});
   }
 
   render() {
@@ -50,10 +61,14 @@ export class EdidDetail extends LitElement {
       return html`<div class="empty">Select an EDID to view details</div>`;
     }
 
+    const id = this.edid.idHex || this.edid.md5Hex;
+    const githubUrl = this._getGitHubUrl();
+
     return html`
       <edid-viewer
         .edidData=${this.edid.rawEdid}
-        .hash=${this.edid.md5Hex}
+        .hash=${id}
+        .githubUrl=${githubUrl}
         ?show-back=${this.mobile}
         @back=${this._onBack}
       ></edid-viewer>
