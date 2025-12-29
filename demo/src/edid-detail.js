@@ -230,12 +230,17 @@ export class EdidDetail extends LitElement {
         >Decoded</button>
         <button
           class="tab"
-          data-active=${this._activeTab === 'raw'}
-          @click=${() => this._activeTab = 'raw'}
-        >Raw Hex</button>
+          data-active=${this._activeTab === 'hex'}
+          @click=${() => this._activeTab = 'hex'}
+        >EDID Hex</button>
+        <button
+          class="tab"
+          data-active=${this._activeTab === 'hex-spaced'}
+          @click=${() => this._activeTab = 'hex-spaced'}
+        >edid-decode Hex</button>
       </div>
       <div class="content">
-        ${this._activeTab === 'decoded' ? this._renderDecoded() : this._renderRaw()}
+        ${this._activeTab === 'decoded' ? this._renderDecoded() : this._renderHex(this._activeTab === 'hex-spaced')}
       </div>
     `;
   }
@@ -296,15 +301,24 @@ export class EdidDetail extends LitElement {
     return `${inches.toFixed(1)}"`;
   }
 
-  _getHexString() {
+  _getHexString(spaced = false) {
     if (!this.edid?.rawEdid) return '';
-    return Array.from(this.edid.rawEdid)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join(' ');
+    const bytes = this.edid.rawEdid;
+    const lines = [];
+
+    for (let i = 0; i < bytes.length; i += 16) {
+      const chunk = Array.from(bytes.slice(i, i + 16));
+      const line = chunk
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join(spaced ? ' ' : '');
+      lines.push(line);
+    }
+
+    return lines.join('\n');
   }
 
-  async _copyHex() {
-    const hexString = this._getHexString();
+  async _copyHex(spaced) {
+    const hexString = this._getHexString(spaced);
     try {
       await navigator.clipboard.writeText(hexString);
       this._copied = true;
@@ -314,18 +328,18 @@ export class EdidDetail extends LitElement {
     }
   }
 
-  _renderRaw() {
+  _renderHex(spaced = false) {
     if (!this.edid.rawEdid) {
       return html`<div class="empty">No raw EDID data available</div>`;
     }
 
-    const hexString = this._getHexString();
+    const hexString = this._getHexString(spaced);
 
     return html`
       <div class="hex-container">
         <div class="hex-header">
-          <span class="hex-label">${this.edid.rawEdid.length} bytes</span>
-          <button class="copy-btn" @click=${this._copyHex} ?data-copied=${this._copied}>
+          <span class="hex-label">${this.edid.rawEdid.length} bytes, 16 bytes/line</span>
+          <button class="copy-btn" @click=${() => this._copyHex(spaced)} ?data-copied=${this._copied}>
             <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               ${this._copied
                 ? html`<polyline points="20 6 9 17 4 12"></polyline>`
