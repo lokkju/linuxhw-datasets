@@ -27,6 +27,7 @@ export class EdidBrowser extends LitElement {
     :host {
       display: flex;
       flex-direction: column;
+      width: 100%;
       height: 100%;
       min-height: 0;
       max-width: 1200px;
@@ -243,6 +244,9 @@ export class EdidBrowser extends LitElement {
   }
 
   _updateLayout(width, height) {
+    // Ignore bogus measurements (component not yet laid out)
+    if (width < 100) return;
+
     let mode;
     if (width < 600) {
       mode = 'mobile';
