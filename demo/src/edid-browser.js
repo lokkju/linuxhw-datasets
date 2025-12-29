@@ -246,11 +246,8 @@ export class EdidBrowser extends LitElement {
     let mode;
     if (width < 600) {
       mode = 'mobile';
-    } else if (width >= 1000) {
-      mode = 'wide';
     } else {
-      // Between 600-1000px: use stacked if tall enough, otherwise mobile-like
-      mode = height >= 600 ? 'stacked' : 'mobile';
+      mode = 'wide';
     }
 
     if (mode !== this._layoutMode) {

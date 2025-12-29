@@ -8,6 +8,7 @@ export class EdidDetail extends LitElement {
     edid: { type: Object },
     mobile: { type: Boolean, reflect: true },
     _activeTab: { type: String, state: true },
+    _copied: { type: Boolean, state: true },
   };
 
   static styles = css`
@@ -97,30 +98,73 @@ export class EdidDetail extends LitElement {
       font-size: 0.875rem;
     }
 
-    .hex-dump {
+    .hex-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      gap: 0.5rem;
+    }
+
+    .hex-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .hex-label {
+      font-size: 0.75rem;
+      color: var(--color-text-muted, #888);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .copy-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.625rem;
+      border: 1px solid var(--color-border, #2a2a4e);
+      background: transparent;
+      color: var(--color-text-muted, #888);
+      font-size: 0.75rem;
+      border-radius: var(--radius, 4px);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .copy-btn:hover {
+      color: var(--color-text, #eee);
+      border-color: var(--color-text-muted, #888);
+    }
+
+    .copy-btn[data-copied] {
+      color: #4ade80;
+      border-color: #4ade80;
+    }
+
+    .copy-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .hex-textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 200px;
+      padding: 0.75rem;
+      border: 1px solid var(--color-border, #2a2a4e);
+      background: var(--color-bg, #1a1a2e);
+      color: var(--color-text, #eee);
       font-family: ui-monospace, monospace;
       font-size: 0.75rem;
       line-height: 1.5;
-      white-space: pre;
-      color: var(--color-text, #eee);
+      resize: none;
+      border-radius: var(--radius, 4px);
     }
 
-    .hex-line {
-      display: flex;
-      gap: 1rem;
-    }
-
-    .hex-offset {
-      color: var(--color-text-muted, #888);
-      min-width: 4ch;
-    }
-
-    .hex-bytes {
-      letter-spacing: 0.25em;
-    }
-
-    .hex-ascii {
-      color: var(--color-text-muted, #888);
+    .hex-textarea:focus {
+      outline: none;
+      border-color: var(--color-accent, #e94560);
     }
 
     .decoded-section {
@@ -157,6 +201,7 @@ export class EdidDetail extends LitElement {
     this.edid = null;
     this.mobile = false;
     this._activeTab = 'decoded';
+    this._copied = false;
   }
 
   _onBack() {
@@ -247,38 +292,47 @@ export class EdidDetail extends LitElement {
     return `${inches.toFixed(1)}"`;
   }
 
+  _getHexString() {
+    if (!this.edid?.rawEdid) return '';
+    return Array.from(this.edid.rawEdid)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join(' ');
+  }
+
+  async _copyHex() {
+    const hexString = this._getHexString();
+    try {
+      await navigator.clipboard.writeText(hexString);
+      this._copied = true;
+      setTimeout(() => { this._copied = false; }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }
+
   _renderRaw() {
     if (!this.edid.rawEdid) {
       return html`<div class="empty">No raw EDID data available</div>`;
     }
 
-    const bytes = this.edid.rawEdid;
-    const lines = [];
-
-    for (let i = 0; i < bytes.length; i += 16) {
-      const offset = i.toString(16).padStart(4, '0');
-      const chunk = bytes.slice(i, i + 16);
-
-      const hexPart = Array.from(chunk)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join(' ');
-
-      const asciiPart = Array.from(chunk)
-        .map(b => (b >= 0x20 && b < 0x7f) ? String.fromCharCode(b) : '.')
-        .join('');
-
-      lines.push({ offset, hex: hexPart, ascii: asciiPart });
-    }
+    const hexString = this._getHexString();
 
     return html`
-      <div class="hex-dump">
-        ${lines.map(line => html`
-          <div class="hex-line">
-            <span class="hex-offset">${line.offset}</span>
-            <span class="hex-bytes">${line.hex}</span>
-            <span class="hex-ascii">${line.ascii}</span>
-          </div>
-        `)}
+      <div class="hex-container">
+        <div class="hex-header">
+          <span class="hex-label">${this.edid.rawEdid.length} bytes</span>
+          <button class="copy-btn" @click=${this._copyHex} ?data-copied=${this._copied}>
+            <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              ${this._copied
+                ? html`<polyline points="20 6 9 17 4 12"></polyline>`
+                : html`<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>`
+              }
+            </svg>
+            ${this._copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+        <textarea class="hex-textarea" readonly .value=${hexString}></textarea>
       </div>
     `;
   }
