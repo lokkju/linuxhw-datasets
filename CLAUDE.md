@@ -6,7 +6,7 @@ A cross-platform EDID (Extended Display Identification Data) dataset built from 
 
 ```
 edid-dataset/
-├── upstream/EDID/          # Git subtree of linuxhw/EDID
+├── upstream/EDID/          # Git submodule of linuxhw/EDID
 ├── python/
 │   ├── build/              # Build tools (ingest, generate)
 │   └── edid_dataset/       # Python client library
@@ -41,7 +41,9 @@ edid-dataset/
 ## Git Workflow
 
 - Commit frequently after completing logical units of work
-- Use git subtree for upstream EDID repo (pinnable, updatable)
+- Use git submodule for upstream EDID repo (pinnable, updatable)
+- Clone with: `git clone --recursive`
+- Update EDID data: `git submodule update --remote upstream/EDID`
 - Don't include co-authored-by in commits
 
 ## Dependencies
