@@ -52,6 +52,9 @@ export class EdidBrowser extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.indexLoader = new IndexLoader(this.baseUrl);
+
+    // Start loading default index immediately
+    this.indexLoader.load(this.activeTab);
   }
 
   render() {
