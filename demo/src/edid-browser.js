@@ -14,6 +14,7 @@ export class EdidBrowser extends LitElement {
     searchQuery: { type: String, state: true },
     results: { type: Array, state: true },
     isSearching: { type: Boolean, state: true },
+    isLoadingIndex: { type: Boolean, state: true },
   };
 
   static styles = css`
@@ -44,6 +45,7 @@ export class EdidBrowser extends LitElement {
     this.searchQuery = '';
     this.results = [];
     this.isSearching = false;
+    this.isLoadingIndex = false;
     this.indexLoader = null;
   }
 
@@ -67,6 +69,7 @@ export class EdidBrowser extends LitElement {
           <results-table
             .results=${this.results}
             .isLoading=${this.isSearching}
+            .isLoadingIndex=${this.isLoadingIndex}
             .baseUrl=${this.baseUrl}
           ></results-table>
         </div>
@@ -87,14 +90,21 @@ export class EdidBrowser extends LitElement {
       return;
     }
 
-    this.isSearching = true;
     this.searchQuery = query;
 
     try {
+      // Check if index needs loading
+      const indexState = this.indexLoader.getState(tab);
+      if (indexState !== 'loaded') {
+        this.isLoadingIndex = true;
+      }
+
       // Load index if not already loaded
       const index = await this.indexLoader.load(tab);
+      this.isLoadingIndex = false;
 
-      // Search for matching entries
+      // Now search
+      this.isSearching = true;
       const matches = index.search(query);
       this.results = matches;
     } catch (err) {
@@ -102,6 +112,7 @@ export class EdidBrowser extends LitElement {
       this.results = [];
     } finally {
       this.isSearching = false;
+      this.isLoadingIndex = false;
     }
   }
 }

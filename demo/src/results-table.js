@@ -10,6 +10,7 @@ export class ResultsTable extends LitElement {
   static properties = {
     results: { type: Array },
     isLoading: { type: Boolean },
+    isLoadingIndex: { type: Boolean },
     baseUrl: { type: String },
     _currentPage: { type: Number, state: true },
     _expandedKey: { type: String, state: true },
@@ -136,6 +137,7 @@ export class ResultsTable extends LitElement {
     super();
     this.results = [];
     this.isLoading = false;
+    this.isLoadingIndex = false;
     this.baseUrl = '../data/';
     this._currentPage = 0;
     this._expandedKey = null;
@@ -175,6 +177,15 @@ export class ResultsTable extends LitElement {
   }
 
   render() {
+    if (this.isLoadingIndex) {
+      return html`
+        <div class="loading">
+          <div class="spinner"></div>
+          Loading index...
+        </div>
+      `;
+    }
+
     if (this.isLoading) {
       return html`
         <div class="loading">
