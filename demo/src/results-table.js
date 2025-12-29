@@ -170,8 +170,8 @@ export class ResultsTable extends LitElement {
     }
 
     .edid-resolution {
-      font-weight: 500;
       min-width: 80px;
+      color: var(--color-text-muted, #888);
     }
 
     .edid-meta {
@@ -183,9 +183,10 @@ export class ResultsTable extends LitElement {
 
     .edid-hash {
       font-family: ui-monospace, monospace;
-      font-size: 0.6875rem;
-      color: var(--color-text-muted, #888);
-      min-width: 5.5em;
+      font-size: 0.8125rem;
+      color: var(--color-text, #eee);
+      font-weight: 500;
+      min-width: 6em;
     }
 
     .edid-error {
