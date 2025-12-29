@@ -32,16 +32,18 @@ data/
 }
 ```
 
-## Bucket File Format
+## Bucket File Format (v2)
 
 Each bucket file (`{00..ff}.bin`) contains all EDIDs whose MD5 hash starts with that byte prefix. Files are designed for efficient binary search.
+
+**Note:** v2 removed the metadata section. All display metadata (manufacturer ID, resolution, year, etc.) is decoded client-side from the raw EDID bytes.
 
 ### Header (16 bytes)
 
 | Offset | Size | Type   | Description               |
 |--------|------|--------|---------------------------|
 | 0      | 4    | bytes  | Magic: `EDIB`             |
-| 4      | 2    | u16le  | Version (currently 1)     |
+| 4      | 2    | u16le  | Version (currently 2)     |
 | 6      | 2    | u16le  | Entry count               |
 | 8      | 4    | u32le  | Values section offset     |
 | 12     | 4    | bytes  | Reserved (zeros)          |
@@ -49,20 +51,6 @@ Each bucket file (`{00..ff}.bin`) contains all EDIDs whose MD5 hash starts with 
 ### Keys Section (15 bytes per entry)
 
 Immediately follows header. Each key is the remaining 15 bytes of the MD5 hash (first byte is the bucket prefix). Keys are sorted for binary search.
-
-### Metadata Section (16 bytes per entry)
-
-| Offset | Size | Type   | Description               |
-|--------|------|--------|---------------------------|
-| 0      | 2    | u16le  | Vendor ID (reserved)      |
-| 2      | 2    | u16le  | Model ID (reserved)       |
-| 4      | 2    | u16le  | Manufacture year          |
-| 6      | 2    | u16le  | Width in pixels           |
-| 8      | 2    | u16le  | Height in pixels          |
-| 10     | 2    | u16le  | Width in mm               |
-| 12     | 2    | u16le  | Height in mm              |
-| 14     | 1    | u8     | Display type (0=analog, 1=digital, 2=unknown) |
-| 15     | 1    | u8     | Flags (reserved)          |
 
 ### Offsets Section (4 bytes per entry)
 
@@ -73,6 +61,28 @@ Packed offset + length for each EDID's raw bytes:
 ### Values Section
 
 Raw EDID bytes, 4-byte aligned. Typical EDID is 128 or 256 bytes.
+
+## Client-Side EDID Decoding
+
+All display metadata is decoded from the raw EDID bytes in the client library. The base EDID block (128 bytes) contains:
+
+| Bytes | Field |
+|-------|-------|
+| 0-7 | Header (00 FF FF FF FF FF FF 00) |
+| 8-9 | Manufacturer ID (3 letters packed into 2 bytes) |
+| 10-11 | Product code (little-endian) |
+| 12-15 | Serial number (little-endian) |
+| 16 | Week of manufacture |
+| 17 | Year of manufacture (add 1990) |
+| 18-19 | EDID version.revision |
+| 20 | Video input (bit 7 = digital) |
+| 21-22 | Screen size in cm (width, height) |
+| 23 | Gamma |
+| 54-125 | Detailed timing descriptors (4 x 18 bytes) |
+| 126 | Extension count |
+| 127 | Checksum |
+
+See `demo/src/edid-decoder.js` for the reference JavaScript implementation.
 
 ## Packed Index File Format (.idx)
 
@@ -120,8 +130,8 @@ Serialized [Roaring Bitmaps](https://roaringbitmap.org/), packed contiguously. E
 1. Parse first byte as bucket prefix
 2. Load bucket file `{prefix:02x}.bin`
 3. Binary search keys section for remaining 15 bytes
-4. Read metadata and value offset at found index
-5. Return EDID data
+4. Read value offset at found index
+5. Return raw EDID data (decode client-side as needed)
 
 ### By Dimension (Vendor/Product/Code/Size)
 
@@ -136,9 +146,10 @@ Serialized [Roaring Bitmaps](https://roaringbitmap.org/), packed contiguously. E
 
 | Component | Size |
 |-----------|------|
-| Buckets (256 files) | ~35 MB |
+| Buckets (256 files) | ~28 MB (v2: no metadata) |
 | Vendor index | ~254 KB |
 | Product index | ~802 KB |
 | Code index | ~1.2 MB |
 | Size index | ~228 KB |
-| **Total** | **~37 MB** |
+| Path index | ~1 MB |
+| **Total** | **~31 MB** |
