@@ -160,19 +160,40 @@ export class SearchTabs extends LitElement {
     }
     if (!this.indexLoader) return;
 
-    this._unsubscribe = this.indexLoader.onProgress((name, loaded, total) => {
+    this._unsubscribe = this.indexLoader.onProgress((name, loaded, total, done) => {
       this._loadingStates = {
         ...this._loadingStates,
-        [name]: { loaded, total, state: 'loading' },
+        [name]: { loaded, total, state: done ? 'loaded' : 'loading' },
       };
     });
   }
 
   _getTabState(tabId) {
-    if (!this.indexLoader) return 'idle';
+    if (!this.indexLoader) return { state: 'idle', loaded: 0, total: 0 };
+
+    // Prefer local state for reactive updates (includes both loading and loaded)
+    const localState = this._loadingStates[tabId];
+    if (localState) {
+      return {
+        state: localState.state,
+        loaded: localState.loaded,
+        total: localState.total,
+      };
+    }
+
+    // Fall back to indexLoader state (for already-loaded indexes on page refresh, etc.)
     const state = this.indexLoader.getState(tabId);
     const progress = this.indexLoader.getProgress(tabId);
-    return { state, ...progress };
+
+    if (state === 'loaded') {
+      return { state: 'loaded', loaded: progress.total || 1, total: progress.total || 1 };
+    }
+
+    if (state === 'loading') {
+      return { state: 'loading', loaded: progress.loaded || 0, total: progress.total || 0 };
+    }
+
+    return { state: 'idle', loaded: 0, total: 0 };
   }
 
   _formatBytes(bytes) {

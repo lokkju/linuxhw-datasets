@@ -16,16 +16,16 @@ export class IndexLoader {
     this.listeners = new Set();
   }
 
-  /** Subscribe to progress updates */
+  /** Subscribe to progress updates. Callback: (name, loaded, total, done) */
   onProgress(callback) {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
 
-  _notifyProgress(name, loaded, total) {
+  _notifyProgress(name, loaded, total, done = false) {
     this.progress.set(name, { loaded, total });
     for (const cb of this.listeners) {
-      cb(name, loaded, total);
+      cb(name, loaded, total, done);
     }
   }
 
@@ -60,6 +60,9 @@ export class IndexLoader {
     try {
       const index = await promise;
       this.indexes.set(name, index);
+      // Notify completion
+      const progress = this.progress.get(name) || { loaded: 0, total: 0 };
+      this._notifyProgress(name, progress.total, progress.total, true);
       return index;
     } finally {
       this.loading.delete(name);
