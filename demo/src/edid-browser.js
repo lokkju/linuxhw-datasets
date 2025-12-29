@@ -1,27 +1,22 @@
 import { LitElement, html, css } from 'lit';
-import { IndexLoader } from './index-loader.js';
-import { BucketLoader } from './bucket-loader.js';
-import './search-tabs.js';
-import './results-table.js';
+import './edid-selector.js';
 import './edid-detail.js';
 
 /**
- * Main EDID browser component.
- * Coordinates search tabs, index loading, and results display.
+ * Main EDID browser component - wrapper that coordinates selector and viewer.
+ * Handles responsive layout and status display.
+ *
+ * @element edid-browser
+ * @prop {string} baseUrl - Base URL for data files
  */
 export class EdidBrowser extends LitElement {
   static properties = {
     baseUrl: { type: String, attribute: 'data-base-url' },
-    activeTab: { type: String, state: true },
-    searchQuery: { type: String, state: true },
-    results: { type: Array, state: true },
-    isSearching: { type: Boolean, state: true },
-    isLoadingIndex: { type: Boolean, state: true },
     _status: { type: Object, state: true },
     _selectedEdid: { type: Object, state: true },
-    _layoutMode: { type: String, state: true },  // 'wide', 'stacked', 'mobile'
-    _showDetail: { type: Boolean, state: true }, // For mobile slide navigation
-    _upstream: { type: Object, state: true },    // { commit, date } from manifest
+    _layoutMode: { type: String, state: true },
+    _showDetail: { type: Boolean, state: true },
+    _upstream: { type: Object, state: true },
   };
 
   static styles = css`
@@ -70,28 +65,21 @@ export class EdidBrowser extends LitElement {
       text-decoration: underline;
     }
 
-    .search-section {
-      padding: 0.75rem 1rem;
-      background: var(--color-surface, #16213e);
-      border-bottom: 1px solid var(--color-border, #2a2a4e);
-      flex-shrink: 0;
-    }
-
-    /* Main content area - holds results and detail */
+    /* Main content area */
     .main-content {
       flex: 1;
       min-height: 0;
       display: flex;
-      flex-direction: row;  /* Default to wide layout */
+      flex-direction: row;
       overflow: hidden;
     }
 
-    /* Wide layout: side by side with fixed results width */
+    /* Wide layout: side by side */
     :host([layout="wide"]) .main-content {
       flex-direction: row;
     }
 
-    :host([layout="wide"]) .results-section {
+    :host([layout="wide"]) .selector-section {
       width: 450px;
       flex-shrink: 0;
       border-right: 1px solid var(--color-border, #2a2a4e);
@@ -101,30 +89,13 @@ export class EdidBrowser extends LitElement {
       flex: 1 1 auto;
     }
 
-    /* Stacked layout: results top with fixed height, detail below */
-    :host([layout="stacked"]) .main-content {
-      flex-direction: column;
-    }
-
-    :host([layout="stacked"]) .results-section {
-      width: auto;
-      height: 300px;
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--color-border, #2a2a4e);
-    }
-
-    :host([layout="stacked"]) .detail-section {
-      flex: 1;
-      min-height: 0;
-    }
-
     /* Mobile layout: slide between screens */
     :host([layout="mobile"]) .main-content {
       position: relative;
       overflow: hidden;
     }
 
-    :host([layout="mobile"]) .results-section,
+    :host([layout="mobile"]) .selector-section,
     :host([layout="mobile"]) .detail-section {
       width: auto;
       min-width: 0;
@@ -136,11 +107,11 @@ export class EdidBrowser extends LitElement {
       transition: transform 0.3s ease-in-out;
     }
 
-    :host([layout="mobile"]) .results-section {
+    :host([layout="mobile"]) .selector-section {
       transform: translateX(0);
     }
 
-    :host([layout="mobile"][show-detail]) .results-section {
+    :host([layout="mobile"][show-detail]) .selector-section {
       transform: translateX(-100%);
     }
 
@@ -152,18 +123,16 @@ export class EdidBrowser extends LitElement {
       transform: translateX(0);
     }
 
-    .results-section {
-      overflow-y: auto;
+    .selector-section {
+      overflow: hidden;
       background: var(--color-bg, #1a1a2e);
-      /* Default to wide layout */
       width: 450px;
       flex-shrink: 0;
     }
 
     .detail-section {
-      overflow-y: auto;
+      overflow: hidden;
       background: var(--color-surface, #16213e);
-      /* Take remaining space */
       flex: 1 1 auto;
       width: 0;
     }
@@ -226,13 +195,6 @@ export class EdidBrowser extends LitElement {
   constructor() {
     super();
     this.baseUrl = '../data/';
-    this.activeTab = 'products';
-    this.searchQuery = '';
-    this.results = [];
-    this.isSearching = false;
-    this.isLoadingIndex = false;
-    this.indexLoader = null;
-    this.bucketLoader = null;
     this._status = { message: 'Ready', type: 'info', timestamp: Date.now() };
     this._selectedEdid = null;
     this._layoutMode = 'wide';
@@ -244,26 +206,16 @@ export class EdidBrowser extends LitElement {
   connectedCallback() {
     super.connectedCallback();
 
-    // Set default layout immediately
+    // Set default layout
     this.setAttribute('layout', 'wide');
 
-    this.indexLoader = new IndexLoader(this.baseUrl);
-    this.bucketLoader = new BucketLoader(this.baseUrl);
-
-    // Preload manifest for bucket lookups and get upstream info
-    this.bucketLoader.loadManifest().then(manifest => {
-      if (manifest?.upstream) {
-        this._upstream = manifest.upstream;
-      }
-    });
-
-    // Progressive background loading - smallest/most useful first
-    this._preloadIndexes();
+    // Fetch manifest for upstream info
+    this._loadManifest();
 
     // Set up resize observer for responsive layout
     this._resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) {
-        this._updateLayout(entry.contentRect.width, entry.contentRect.height);
+        this._updateLayout(entry.contentRect.width);
       }
     });
     this._resizeObserver.observe(this);
@@ -271,7 +223,7 @@ export class EdidBrowser extends LitElement {
     // Initial layout check
     requestAnimationFrame(() => {
       const rect = this.getBoundingClientRect();
-      this._updateLayout(rect.width, rect.height);
+      this._updateLayout(rect.width);
     });
   }
 
@@ -283,55 +235,35 @@ export class EdidBrowser extends LitElement {
     }
   }
 
-  _updateLayout(width, height) {
-    // Ignore bogus measurements (component not yet laid out)
+  async _loadManifest() {
+    try {
+      const response = await fetch(`${this.baseUrl}manifest.json`);
+      if (response.ok) {
+        const manifest = await response.json();
+        if (manifest?.upstream) {
+          this._upstream = manifest.upstream;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load manifest:', err);
+    }
+  }
+
+  _updateLayout(width) {
     if (width < 100) return;
 
-    let mode;
-    if (width < 600) {
-      mode = 'mobile';
-    } else {
-      mode = 'wide';
-    }
+    const mode = width < 600 ? 'mobile' : 'wide';
 
     if (mode !== this._layoutMode) {
       this._layoutMode = mode;
       this.setAttribute('layout', mode);
     }
 
-    // Update show-detail attribute for mobile sliding
     if (this._showDetail) {
       this.setAttribute('show-detail', '');
     } else {
       this.removeAttribute('show-detail');
     }
-  }
-
-  async _preloadIndexes() {
-    const loadOrder = ['products', 'vendors', 'sizes', 'codes', 'paths'];
-
-    for (const name of loadOrder) {
-      try {
-        this._setStatus(`Preloading ${name} index...`, 'loading');
-        const index = await this.indexLoader.load(name);
-
-        // Show initial results for first (active) tab
-        if (name === this.activeTab) {
-          this.results = index.entries;
-          this._setStatus(`Showing ${index.entries.length} ${name}`, 'success');
-        } else {
-          this._setStatus(`Loaded ${name} index`, 'success');
-        }
-      } catch (err) {
-        console.warn(`Failed to preload ${name}:`, err);
-        this._setStatus(`Failed to preload ${name}: ${err.message}`, 'warning');
-      }
-    }
-    this._setStatus('All indexes loaded', 'success');
-  }
-
-  _setStatus(message, type = 'info') {
-    this._status = { message, type, timestamp: Date.now() };
   }
 
   _onStatus(e) {
@@ -340,7 +272,6 @@ export class EdidBrowser extends LitElement {
 
   _onEdidSelect(e) {
     this._selectedEdid = e.detail.edid;
-    // On mobile, slide to detail screen
     if (this._layoutMode === 'mobile') {
       this._showDetail = true;
       this.setAttribute('show-detail', '');
@@ -367,26 +298,13 @@ export class EdidBrowser extends LitElement {
         <span class="count">141,753 monitors</span>
         <a href="https://github.com/lokkju/edid-dataset" target="_blank" class="project-link">lokkju/edid-dataset</a>
       </div>
-      <div class="search-section">
-        <search-tabs
-          .activeTab=${this.activeTab}
-          .indexLoader=${this.indexLoader}
-          @tab-change=${this._onTabChange}
-          @search=${this._onSearch}
-        ></search-tabs>
-      </div>
       <div class="main-content">
-        <div class="results-section">
-          <results-table
-            .results=${this.results}
-            .isLoading=${this.isSearching}
-            .isLoadingIndex=${this.isLoadingIndex}
-            .indexLoader=${this.indexLoader}
-            .bucketLoader=${this.bucketLoader}
-            .activeTab=${this.activeTab}
+        <div class="selector-section">
+          <edid-selector
+            base-url=${this.baseUrl}
             @status=${this._onStatus}
             @edid-select=${this._onEdidSelect}
-          ></results-table>
+          ></edid-selector>
         </div>
         <div class="detail-section">
           <edid-detail
@@ -402,128 +320,6 @@ export class EdidBrowser extends LitElement {
         <span class="status-source">${this._renderUpstreamInfo()}</span>
       </div>
     `;
-  }
-
-  _onTabChange(e) {
-    this.activeTab = e.detail.tab;
-    this.results = [];
-    this.searchQuery = '';
-    this._setStatus(`Switched to ${e.detail.tab}`, 'info');
-    // Load initial results for new tab
-    this._loadInitialResults(e.detail.tab);
-  }
-
-  async _loadInitialResults(tab) {
-    // Hash tab doesn't have an index - requires search
-    if (tab === 'hashes') {
-      this.results = [];
-      this._setStatus('Enter a hex prefix to search by MD5 hash', 'info');
-      return;
-    }
-
-    try {
-      const index = await this.indexLoader.load(tab);
-      // Show all entries (already sorted alphabetically)
-      this.results = index.entries;
-      this._setStatus(`Showing ${index.entries.length} ${tab}`, 'success');
-    } catch (err) {
-      console.error('Failed to load initial results:', err);
-    }
-  }
-
-  async _onSearch(e) {
-    const { tab, query } = e.detail;
-
-    this.searchQuery = query;
-
-    // Hash search is handled differently - direct bucket scan
-    if (tab === 'hashes') {
-      await this._searchByHash(query);
-      return;
-    }
-
-    try {
-      // Check if index needs loading
-      const indexState = this.indexLoader.getState(tab);
-      if (indexState !== 'loaded') {
-        this.isLoadingIndex = true;
-        this._setStatus(`Loading ${tab} index...`, 'loading');
-      }
-
-      // Load index if not already loaded
-      const index = await this.indexLoader.load(tab);
-      this.isLoadingIndex = false;
-
-      // Search or show all
-      this.isSearching = true;
-      if (!query.trim()) {
-        this.results = index.entries;
-        this._setStatus(`Showing ${index.entries.length} ${tab}`, 'success');
-      } else {
-        const matches = index.search(query);
-        this.results = matches;
-        this._setStatus(`Found ${matches.length} results for "${query}"`, 'success');
-      }
-    } catch (err) {
-      console.error('Search failed:', err);
-      this.results = [];
-      this._setStatus(`Search failed: ${err.message}`, 'error');
-    } finally {
-      this.isSearching = false;
-      this.isLoadingIndex = false;
-    }
-  }
-
-  async _searchByHash(query) {
-    const prefix = query.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
-
-    if (!prefix) {
-      this.results = [];
-      this._setStatus('Enter a hex prefix to search by MD5 hash', 'info');
-      return;
-    }
-
-    if (prefix.length < 2) {
-      this.results = [];
-      this._setStatus('Enter at least 2 hex characters for hash search', 'info');
-      return;
-    }
-
-    this.isSearching = true;
-    this._setStatus(`Searching for hashes starting with "${prefix}"...`, 'loading');
-
-    try {
-      // First 2 chars determine the bucket
-      const bucketPrefix = parseInt(prefix.slice(0, 2), 16);
-
-      // Load the bucket
-      const bucket = await this.bucketLoader.load(bucketPrefix);
-
-      // Get all entries and filter by prefix
-      const matches = [];
-      for (let i = 0; i < bucket.entryCount; i++) {
-        const entry = bucket.getEntry(i);
-        if (entry.md5Hex.startsWith(prefix)) {
-          matches.push({
-            key: entry.md5Hex,
-            // For hash results, we store the entry directly for display
-            _hashEntry: entry,
-          });
-        }
-        // Stop if we have enough matches
-        if (matches.length >= 100) break;
-      }
-
-      this.results = matches;
-      const moreText = matches.length >= 100 ? '100+' : matches.length;
-      this._setStatus(`Found ${moreText} hashes starting with "${prefix}"`, 'success');
-    } catch (err) {
-      console.error('Hash search failed:', err);
-      this.results = [];
-      this._setStatus(`Hash search failed: ${err.message}`, 'error');
-    } finally {
-      this.isSearching = false;
-    }
   }
 }
 
