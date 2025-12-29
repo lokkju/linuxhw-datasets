@@ -1,6 +1,8 @@
 import { LitElement, html, css } from 'lit';
+import { decodeRoaringLimit } from './roaring.js';
 
 const PAGE_SIZE = 25;
+const EDID_PREVIEW_COUNT = 5;
 
 /**
  * Results table with paging.
@@ -11,9 +13,14 @@ export class ResultsTable extends LitElement {
     results: { type: Array },
     isLoading: { type: Boolean },
     isLoadingIndex: { type: Boolean },
-    baseUrl: { type: String },
+    indexLoader: { type: Object },
+    bucketLoader: { type: Object },
+    activeTab: { type: String },
     _currentPage: { type: Number, state: true },
     _expandedKey: { type: String, state: true },
+    _expandedEdids: { type: Array, state: true },
+    _expandedLoading: { type: Boolean, state: true },
+    _expandedTotal: { type: Number, state: true },
   };
 
   static styles = css`
@@ -86,17 +93,63 @@ export class ResultsTable extends LitElement {
       font-weight: 500;
     }
 
-    .result-meta {
-      font-size: 0.875rem;
-      color: var(--color-text-muted);
-    }
-
     .result-arrow {
       transition: transform 0.15s;
     }
 
     .result-arrow[data-expanded="true"] {
       transform: rotate(90deg);
+    }
+
+    .expanded-content {
+      background: var(--color-bg);
+      padding: 1rem;
+      border-top: 1px solid var(--color-primary);
+    }
+
+    .edid-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .edid-item {
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      background: var(--color-surface);
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+    }
+
+    .edid-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .edid-hash {
+      font-family: monospace;
+      color: var(--color-text-muted);
+      font-size: 0.75rem;
+    }
+
+    .edid-resolution {
+      color: var(--color-accent);
+      font-weight: 500;
+    }
+
+    .edid-details {
+      display: flex;
+      gap: 1rem;
+      color: var(--color-text-muted);
+      font-size: 0.75rem;
+    }
+
+    .edid-more {
+      text-align: center;
+      padding: 0.5rem;
+      color: var(--color-text-muted);
+      font-size: 0.875rem;
     }
 
     .pagination {
@@ -138,15 +191,21 @@ export class ResultsTable extends LitElement {
     this.results = [];
     this.isLoading = false;
     this.isLoadingIndex = false;
-    this.baseUrl = '../data/';
+    this.indexLoader = null;
+    this.bucketLoader = null;
+    this.activeTab = 'products';
     this._currentPage = 0;
     this._expandedKey = null;
+    this._expandedEdids = [];
+    this._expandedLoading = false;
+    this._expandedTotal = 0;
   }
 
   updated(changedProps) {
     if (changedProps.has('results')) {
       this._currentPage = 0;
       this._expandedKey = null;
+      this._expandedEdids = [];
     }
   }
 
@@ -171,9 +230,48 @@ export class ResultsTable extends LitElement {
     }
   }
 
-  _onResultClick(result) {
-    this._expandedKey = this._expandedKey === result.key ? null : result.key;
-    // TODO: Load and display EDIDs for this key using the Roaring bitmap
+  async _onResultClick(result) {
+    if (this._expandedKey === result.key) {
+      // Collapse
+      this._expandedKey = null;
+      this._expandedEdids = [];
+      return;
+    }
+
+    // Expand and load EDIDs
+    this._expandedKey = result.key;
+    this._expandedEdids = [];
+    this._expandedLoading = true;
+    this._expandedTotal = 0;
+
+    try {
+      // Get the index for bitmap data
+      const index = await this.indexLoader.load(this.activeTab);
+
+      // Get bitmap bytes for this result
+      const bitmapBytes = index.getBitmapBytes(result);
+
+      // Decode bitmap to get global indices (limit to preview count + 1 to know if there are more)
+      const indices = decodeRoaringLimit(bitmapBytes, EDID_PREVIEW_COUNT + 1);
+      this._expandedTotal = indices.length > EDID_PREVIEW_COUNT ? 'many' : indices.length;
+
+      // Load EDID entries for first few indices
+      const edids = [];
+      for (const globalIndex of indices.slice(0, EDID_PREVIEW_COUNT)) {
+        try {
+          const entry = await this.bucketLoader.getByGlobalIndex(globalIndex);
+          edids.push(entry);
+        } catch (err) {
+          console.warn(`Failed to load EDID at index ${globalIndex}:`, err);
+        }
+      }
+
+      this._expandedEdids = edids;
+    } catch (err) {
+      console.error('Failed to expand result:', err);
+    } finally {
+      this._expandedLoading = false;
+    }
   }
 
   render() {
@@ -243,6 +341,66 @@ export class ResultsTable extends LitElement {
           <span class="result-key">${result.key}</span>
           <span class="result-arrow" data-expanded=${isExpanded}>▶</span>
         </button>
+        ${isExpanded ? this._renderExpanded() : ''}
+      </li>
+    `;
+  }
+
+  _renderExpanded() {
+    if (this._expandedLoading) {
+      return html`
+        <div class="expanded-content">
+          <div class="loading">
+            <div class="spinner"></div>
+            Loading EDIDs...
+          </div>
+        </div>
+      `;
+    }
+
+    if (this._expandedEdids.length === 0) {
+      return html`
+        <div class="expanded-content">
+          <div class="empty">No EDID entries found.</div>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="expanded-content">
+        <ul class="edid-list">
+          ${this._expandedEdids.map(edid => this._renderEdid(edid))}
+        </ul>
+        ${this._expandedTotal === 'many' || this._expandedTotal > EDID_PREVIEW_COUNT ? html`
+          <div class="edid-more">
+            + more EDIDs...
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  _renderEdid(edid) {
+    const resolution = edid.widthPx && edid.heightPx
+      ? `${edid.widthPx}x${edid.heightPx}`
+      : 'Unknown resolution';
+
+    const size = edid.widthMm && edid.heightMm
+      ? `${Math.round(Math.sqrt(edid.widthMm**2 + edid.heightMm**2) / 25.4)}"`
+      : '';
+
+    return html`
+      <li class="edid-item">
+        <div class="edid-header">
+          <span class="edid-resolution">${resolution}</span>
+          <span class="edid-hash">${edid.md5Hex.slice(0, 12)}...</span>
+        </div>
+        <div class="edid-details">
+          ${edid.year ? html`<span>Year: ${edid.year}</span>` : ''}
+          ${size ? html`<span>Size: ${size}</span>` : ''}
+          <span>${edid.displayType}</span>
+          <span>${edid.rawEdid.length} bytes</span>
+        </div>
       </li>
     `;
   }

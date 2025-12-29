@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { IndexLoader } from './index-loader.js';
+import { BucketLoader } from './bucket-loader.js';
 import './search-tabs.js';
 import './results-table.js';
 
@@ -47,11 +48,16 @@ export class EdidBrowser extends LitElement {
     this.isSearching = false;
     this.isLoadingIndex = false;
     this.indexLoader = null;
+    this.bucketLoader = null;
   }
 
   connectedCallback() {
     super.connectedCallback();
     this.indexLoader = new IndexLoader(this.baseUrl);
+    this.bucketLoader = new BucketLoader(this.baseUrl);
+
+    // Preload manifest for bucket lookups
+    this.bucketLoader.loadManifest();
 
     // Progressive background loading - smallest/most useful first
     this._preloadIndexes();
@@ -85,7 +91,9 @@ export class EdidBrowser extends LitElement {
             .results=${this.results}
             .isLoading=${this.isSearching}
             .isLoadingIndex=${this.isLoadingIndex}
-            .baseUrl=${this.baseUrl}
+            .indexLoader=${this.indexLoader}
+            .bucketLoader=${this.bucketLoader}
+            .activeTab=${this.activeTab}
           ></results-table>
         </div>
       </div>

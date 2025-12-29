@@ -46,6 +46,7 @@ def generate_compact_files(
         "buckets_written": 0,
         "total_entries": 0,
         "total_bytes": 0,
+        "bucket_counts": [],  # Entry count per bucket (0-255)
     }
 
     # Get all entries ordered by MD5 hash
@@ -72,13 +73,15 @@ def generate_compact_files(
         prefix = md5_hash[0]
         buckets[prefix].append(entry)
 
-    # Write bucket files
+    # Write bucket files and track counts
+    bucket_counts = [0] * 256
     iterator = range(256)
     if show_progress:
         iterator = tqdm(iterator, desc="Writing buckets")
 
     for prefix in iterator:
         bucket_entries = buckets[prefix]
+        bucket_counts[prefix] = len(bucket_entries)
         if not bucket_entries:
             continue
 
@@ -86,6 +89,8 @@ def generate_compact_files(
         write_bucket_file(bucket_path, prefix, bucket_entries)
         stats["buckets_written"] += 1
         stats["total_bytes"] += bucket_path.stat().st_size
+
+    stats["bucket_counts"] = bucket_counts
 
     # Build and write packed Roaring bitmap indexes
     vendor_stats = build_packed_index(
@@ -103,9 +108,10 @@ def generate_compact_files(
 
     # Write manifest
     manifest = {
-        "version": 4,
+        "version": 5,
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
+        "bucket_counts": stats["bucket_counts"],
         "indexes": {
             "vendors": vendor_stats,
             "products": product_stats,
