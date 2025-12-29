@@ -43,7 +43,7 @@ def get_upstream_info(upstream_path: Path) -> dict:
 
 # Bucket file format constants
 BUCKET_MAGIC = b"EDIB"
-BUCKET_VERSION = 1
+BUCKET_VERSION = 2  # v2: removed metadata section, just keys + raw EDID
 
 # Packed index file format constants
 INDEX_MAGIC = b"EIDX"
@@ -172,19 +172,18 @@ def generate_compact_files(
 
 
 def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
-    """Write a single bucket file."""
+    """Write a single bucket file (v2 format: keys + raw EDID only)."""
     # Sort entries by remaining 15 bytes of MD5
     entries.sort(key=lambda e: e[0][1:])
 
     entry_count = len(entries)
 
-    # Calculate offsets
+    # Calculate offsets (v2: no metadata section)
     header_size = 16
     keys_size = entry_count * 15  # 15 bytes per key (excluding prefix)
-    metadata_size = entry_count * 16  # 16 bytes per metadata entry
     offsets_size = entry_count * 4  # 4 bytes per offset
 
-    values_offset = header_size + keys_size + metadata_size + offsets_size
+    values_offset = header_size + keys_size + offsets_size
 
     # Build the file content
     data = bytearray()
@@ -200,13 +199,6 @@ def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
     for entry in entries:
         md5_hash = entry[0]
         data.extend(md5_hash[1:])  # Skip first byte (bucket prefix)
-
-    # Metadata (16 bytes each)
-    for entry in entries:
-        (_md5, _raw, path_vendor, path_model, product_name, year,
-         w_px, h_px, w_mm, h_mm, dtype, screen_size) = entry
-        metadata = encode_metadata(path_vendor, path_model, year, w_px, h_px, w_mm, h_mm, dtype)
-        data.extend(metadata)
 
     # Build values section and offsets
     values_section = bytearray()
@@ -235,40 +227,6 @@ def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
     data.extend(values_section)
 
     path.write_bytes(bytes(data))
-
-
-def encode_metadata(
-    vendor: str | None,
-    model: str | None,
-    year: int | None,
-    w_px: int | None,
-    h_px: int | None,
-    w_mm: int | None,
-    h_mm: int | None,
-    dtype: str | None,
-) -> bytes:
-    """Encode metadata into 16 bytes."""
-    # For now, just store numeric fields
-    # TODO: Implement proper string table references
-    year_val = year if year else 0
-    w_px_val = w_px if w_px else 0
-    h_px_val = h_px if h_px else 0
-    w_mm_val = w_mm if w_mm else 0
-    h_mm_val = h_mm if h_mm else 0
-    dtype_val = 1 if dtype == "digital" else (0 if dtype == "analog" else 2)
-
-    return struct.pack(
-        "<HHHHHHHBB",
-        0,  # vendor_id (TODO)
-        0,  # model_id (TODO)
-        year_val,
-        w_px_val,
-        h_px_val,
-        w_mm_val & 0xFFFF,
-        h_mm_val & 0xFFFF,
-        dtype_val,
-        0,  # flags
-    )
 
 
 def write_packed_index(output_path: Path, entries: list[tuple[str, BitMap]]) -> dict:

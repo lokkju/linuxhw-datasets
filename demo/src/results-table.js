@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { decodeRoaringLimit, countRoaring } from './roaring.js';
+import { decodeEdid } from './edid-decoder.js';
 
 const INITIAL_LOAD = 50;
 const LOAD_MORE = 25;
@@ -567,12 +568,15 @@ export class ResultsTable extends LitElement {
       `;
     }
 
-    const resolution = edid.widthPx && edid.heightPx
-      ? `${edid.widthPx}x${edid.heightPx}`
+    // Decode EDID for display fields
+    const decoded = edid.rawEdid ? decodeEdid(edid.rawEdid) : {};
+
+    const resolution = decoded.preferredResolution
+      ? `${decoded.preferredResolution.width}x${decoded.preferredResolution.height}`
       : '?';
 
-    const size = edid.widthMm && edid.heightMm
-      ? `${Math.round(Math.sqrt(edid.widthMm**2 + edid.heightMm**2) / 25.4)}"`
+    const size = decoded.screenSizeCm?.widthCm && decoded.screenSizeCm?.heightCm
+      ? `${Math.round(Math.sqrt(decoded.screenSizeCm.widthCm**2 + decoded.screenSizeCm.heightCm**2) / 2.54)}"`
       : '';
 
     const isSelected = this._selectedEdid === edid.md5Hex;
@@ -588,8 +592,8 @@ export class ResultsTable extends LitElement {
         <span class="edid-resolution">${resolution}</span>
         <span class="edid-meta">
           ${size ? html`<span>${size}</span>` : ''}
-          ${edid.year ? html`<span>${edid.year}</span>` : ''}
-          <span>${edid.displayType}</span>
+          ${decoded.manufactureYear ? html`<span>${decoded.manufactureYear}</span>` : ''}
+          <span>${decoded.videoInput?.digital ? 'digital' : (decoded.videoInput?.digital === false ? 'analog' : '?')}</span>
         </span>
       </li>
     `;

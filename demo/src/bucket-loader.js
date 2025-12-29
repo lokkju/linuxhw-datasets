@@ -1,10 +1,9 @@
 /**
  * Bucket file loader and parser.
  *
- * Bucket format (from FORMAT.md):
+ * Bucket format v2 (simplified - all decoding done client-side):
  *   Header (16 bytes): magic(4) + version(2) + count(2) + values_offset(4) + reserved(4)
  *   Keys (15 bytes each): remaining bytes of MD5 hash
- *   Metadata (16 bytes each): vendor_id, model_id, year, w_px, h_px, w_mm, h_mm, dtype, flags
  *   Offsets (4 bytes each): packed offset + length
  *   Values: raw EDID bytes, 4-byte aligned
  */
@@ -137,17 +136,16 @@ export class ParsedBucket {
     this.entryCount = this.view.getUint16(6, true);
     this.valuesOffset = this.view.getUint32(8, true);
 
-    // Calculate section offsets
+    // Calculate section offsets (v2: no metadata section)
     this.headerSize = 16;
     this.keysOffset = this.headerSize;
     this.keysSize = this.entryCount * 15;
-    this.metadataOffset = this.keysOffset + this.keysSize;
-    this.metadataSize = this.entryCount * 16;
-    this.offsetsOffset = this.metadataOffset + this.metadataSize;
+    this.offsetsOffset = this.keysOffset + this.keysSize;
   }
 
   /**
    * Get entry at local index.
+   * Returns just md5 hash and raw EDID bytes - all decoding done client-side.
    */
   getEntry(index) {
     if (index < 0 || index >= this.entryCount) {
@@ -163,10 +161,6 @@ export class ParsedBucket {
     md5[0] = this.prefix;
     md5.set(keyBytes, 1);
 
-    // Read metadata (16 bytes)
-    const metaStart = this.metadataOffset + index * 16;
-    const metadata = this._parseMetadata(metaStart);
-
     // Read offset + length
     const offsetStart = this.offsetsOffset + index * 4;
     const packed = this.view.getUint32(offsetStart, true);
@@ -180,22 +174,7 @@ export class ParsedBucket {
     return {
       md5,
       md5Hex: Array.from(md5).map(b => b.toString(16).padStart(2, '0')).join(''),
-      ...metadata,
       rawEdid,
-    };
-  }
-
-  _parseMetadata(offset) {
-    return {
-      vendorId: this.view.getUint16(offset, true),
-      modelId: this.view.getUint16(offset + 2, true),
-      year: this.view.getUint16(offset + 4, true),
-      widthPx: this.view.getUint16(offset + 6, true),
-      heightPx: this.view.getUint16(offset + 8, true),
-      widthMm: this.view.getUint16(offset + 10, true),
-      heightMm: this.view.getUint16(offset + 12, true),
-      displayType: ['analog', 'digital', 'unknown'][this.view.getUint8(offset + 14)] || 'unknown',
-      flags: this.view.getUint8(offset + 15),
     };
   }
 

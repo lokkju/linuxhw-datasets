@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit';
+import { decodeEdid } from './edid-decoder.js';
 
 /**
  * EDID detail panel showing raw hex and decoded data.
@@ -248,16 +249,27 @@ export class EdidDetail extends LitElement {
   _renderDecoded() {
     const e = this.edid;
 
+    // Decode raw EDID for additional fields
+    const decoded = e.rawEdid ? decodeEdid(e.rawEdid) : {};
+
     return html`
       <div class="decoded-section">
         <div class="decoded-title">Identification</div>
         <div class="decoded-grid">
           <span class="decoded-label">MD5 Hash</span>
           <span class="decoded-value">${e.md5Hex}</span>
-          <span class="decoded-label">Vendor ID</span>
-          <span class="decoded-value">${e.vendorId || '?'}</span>
-          <span class="decoded-label">Model ID</span>
-          <span class="decoded-value">${e.modelId || '?'}</span>
+          <span class="decoded-label">Manufacturer</span>
+          <span class="decoded-value">${decoded.manufacturerId || '?'}</span>
+          <span class="decoded-label">Product Code</span>
+          <span class="decoded-value">${decoded.productCodeHex || '?'}</span>
+          ${decoded.monitorName ? html`
+            <span class="decoded-label">Monitor Name</span>
+            <span class="decoded-value">${decoded.monitorName}</span>
+          ` : ''}
+          ${decoded.serialString ? html`
+            <span class="decoded-label">Serial</span>
+            <span class="decoded-value">${decoded.serialString}</span>
+          ` : ''}
         </div>
       </div>
 
@@ -265,13 +277,29 @@ export class EdidDetail extends LitElement {
         <div class="decoded-title">Display</div>
         <div class="decoded-grid">
           <span class="decoded-label">Resolution</span>
-          <span class="decoded-value">${e.widthPx || '?'} x ${e.heightPx || '?'}</span>
+          <span class="decoded-value">${decoded.preferredResolution
+            ? `${decoded.preferredResolution.width} x ${decoded.preferredResolution.height}`
+            : '?'}</span>
           <span class="decoded-label">Physical Size</span>
-          <span class="decoded-value">${e.widthMm || '?'} x ${e.heightMm || '?'} mm</span>
+          <span class="decoded-value">${decoded.screenSizeCm
+            ? `${decoded.screenSizeCm.widthCm * 10} x ${decoded.screenSizeCm.heightCm * 10} mm`
+            : '?'}</span>
           <span class="decoded-label">Diagonal</span>
-          <span class="decoded-value">${this._calcDiagonal(e)}</span>
+          <span class="decoded-value">${this._calcDiagonalFromDecoded(decoded)}</span>
           <span class="decoded-label">Type</span>
-          <span class="decoded-value">${e.displayType || '?'}</span>
+          <span class="decoded-value">${decoded.videoInput?.digital ? 'Digital' : (decoded.videoInput?.digital === false ? 'Analog' : '?')}</span>
+          ${decoded.videoInput?.interface && decoded.videoInput.interface !== 'analog' ? html`
+            <span class="decoded-label">Interface</span>
+            <span class="decoded-value">${decoded.videoInput.interface}</span>
+          ` : ''}
+          ${decoded.videoInput?.bitDepth ? html`
+            <span class="decoded-label">Bit Depth</span>
+            <span class="decoded-value">${decoded.videoInput.bitDepth}-bit</span>
+          ` : ''}
+          ${decoded.gamma ? html`
+            <span class="decoded-label">Gamma</span>
+            <span class="decoded-value">${decoded.gamma.toFixed(2)}</span>
+          ` : ''}
         </div>
       </div>
 
@@ -279,25 +307,37 @@ export class EdidDetail extends LitElement {
         <div class="decoded-title">Manufacture</div>
         <div class="decoded-grid">
           <span class="decoded-label">Year</span>
-          <span class="decoded-value">${e.year || '?'}</span>
+          <span class="decoded-value">${decoded.manufactureYear || '?'}</span>
+          ${decoded.manufactureWeek && decoded.manufactureWeek !== 0 ? html`
+            <span class="decoded-label">Week</span>
+            <span class="decoded-value">${decoded.manufactureWeek}</span>
+          ` : ''}
         </div>
       </div>
 
       <div class="decoded-section">
-        <div class="decoded-title">Data</div>
+        <div class="decoded-title">EDID Data</div>
         <div class="decoded-grid">
-          <span class="decoded-label">EDID Size</span>
+          <span class="decoded-label">Version</span>
+          <span class="decoded-value">${decoded.edidVersion || '?'}</span>
+          <span class="decoded-label">Size</span>
           <span class="decoded-value">${e.rawEdid?.length || '?'} bytes</span>
+          <span class="decoded-label">Extensions</span>
+          <span class="decoded-value">${decoded.extensionCount ?? '?'}</span>
           <span class="decoded-label">Global Index</span>
           <span class="decoded-value">${e._globalIndex ?? '?'}</span>
+          <span class="decoded-label">Header Valid</span>
+          <span class="decoded-value">${decoded.headerValid ? 'Yes' : 'No'}</span>
+          <span class="decoded-label">Checksum Valid</span>
+          <span class="decoded-value">${decoded.checksumValid ? 'Yes' : 'No'}</span>
         </div>
       </div>
     `;
   }
 
-  _calcDiagonal(e) {
-    if (!e.widthMm || !e.heightMm) return '?';
-    const inches = Math.sqrt(e.widthMm ** 2 + e.heightMm ** 2) / 25.4;
+  _calcDiagonalFromDecoded(decoded) {
+    if (!decoded.screenSizeCm?.widthCm || !decoded.screenSizeCm?.heightCm) return '?';
+    const inches = Math.sqrt(decoded.screenSizeCm.widthCm ** 2 + decoded.screenSizeCm.heightCm ** 2) / 2.54;
     return `${inches.toFixed(1)}"`;
   }
 
