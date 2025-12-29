@@ -6,6 +6,7 @@ const TABS = [
   { id: 'codes', label: 'PNP Codes', placeholder: 'e.g., DEL01101, SAM0A7C' },
   { id: 'sizes', label: 'Sizes', placeholder: 'e.g., 27, 32' },
   { id: 'paths', label: 'Paths', placeholder: 'e.g., Digital/Dell, Analog' },
+  { id: 'hashes', label: 'Hash', placeholder: 'e.g., a3f2, 00ff (hex prefix)' },
 ];
 
 /**

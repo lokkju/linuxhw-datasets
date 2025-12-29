@@ -414,6 +414,13 @@ export class EdidBrowser extends LitElement {
   }
 
   async _loadInitialResults(tab) {
+    // Hash tab doesn't have an index - requires search
+    if (tab === 'hashes') {
+      this.results = [];
+      this._setStatus('Enter a hex prefix to search by MD5 hash', 'info');
+      return;
+    }
+
     try {
       const index = await this.indexLoader.load(tab);
       // Show all entries (already sorted alphabetically)
@@ -428,6 +435,12 @@ export class EdidBrowser extends LitElement {
     const { tab, query } = e.detail;
 
     this.searchQuery = query;
+
+    // Hash search is handled differently - direct bucket scan
+    if (tab === 'hashes') {
+      await this._searchByHash(query);
+      return;
+    }
 
     try {
       // Check if index needs loading
@@ -458,6 +471,58 @@ export class EdidBrowser extends LitElement {
     } finally {
       this.isSearching = false;
       this.isLoadingIndex = false;
+    }
+  }
+
+  async _searchByHash(query) {
+    const prefix = query.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+
+    if (!prefix) {
+      this.results = [];
+      this._setStatus('Enter a hex prefix to search by MD5 hash', 'info');
+      return;
+    }
+
+    if (prefix.length < 2) {
+      this.results = [];
+      this._setStatus('Enter at least 2 hex characters for hash search', 'info');
+      return;
+    }
+
+    this.isSearching = true;
+    this._setStatus(`Searching for hashes starting with "${prefix}"...`, 'loading');
+
+    try {
+      // First 2 chars determine the bucket
+      const bucketPrefix = parseInt(prefix.slice(0, 2), 16);
+
+      // Load the bucket
+      const bucket = await this.bucketLoader.load(bucketPrefix);
+
+      // Get all entries and filter by prefix
+      const matches = [];
+      for (let i = 0; i < bucket.entryCount; i++) {
+        const entry = bucket.getEntry(i);
+        if (entry.md5Hex.startsWith(prefix)) {
+          matches.push({
+            key: entry.md5Hex,
+            // For hash results, we store the entry directly for display
+            _hashEntry: entry,
+          });
+        }
+        // Stop if we have enough matches
+        if (matches.length >= 100) break;
+      }
+
+      this.results = matches;
+      const moreText = matches.length >= 100 ? '100+' : matches.length;
+      this._setStatus(`Found ${moreText} hashes starting with "${prefix}"`, 'success');
+    } catch (err) {
+      console.error('Hash search failed:', err);
+      this.results = [];
+      this._setStatus(`Hash search failed: ${err.message}`, 'error');
+    } finally {
+      this.isSearching = false;
     }
   }
 }

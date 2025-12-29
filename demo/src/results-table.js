@@ -362,6 +362,18 @@ export class ResultsTable extends LitElement {
   }
 
   async _onResultClick(result) {
+    // Hash results are direct EDID entries - select them directly
+    if (this.activeTab === 'hashes' && result._hashEntry) {
+      this._selectedEdid = result._hashEntry.md5Hex;
+      this.dispatchEvent(new CustomEvent('edid-select', {
+        detail: { edid: result._hashEntry },
+        bubbles: true,
+        composed: true,
+      }));
+      dispatchStatus(this, `Selected EDID ${result._hashEntry.md5Hex.slice(0, 8)}`, 'info');
+      return;
+    }
+
     if (this._expandedKey === result.key) {
       this._expandedKey = null;
       this._expandedEdids = [];
@@ -505,6 +517,21 @@ export class ResultsTable extends LitElement {
   }
 
   _renderResult(result) {
+    // Hash results are direct EDID entries - render differently
+    if (this.activeTab === 'hashes' && result._hashEntry) {
+      const isSelected = this._selectedEdid === result._hashEntry.md5Hex;
+      const decoded = result._hashEntry.rawEdid ? decodeEdid(result._hashEntry.rawEdid) : {};
+
+      return html`
+        <li class="result-item" data-selected=${isSelected}>
+          <button class="result-btn" @click=${() => this._onResultClick(result)}>
+            <span class="result-key">${result.key}</span>
+            <span class="result-count">${decoded.manufacturerId || ''} ${decoded.monitorName || ''}</span>
+          </button>
+        </li>
+      `;
+    }
+
     const isExpanded = this._expandedKey === result.key;
     const count = this._getCount(result.key);
 
