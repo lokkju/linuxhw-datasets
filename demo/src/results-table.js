@@ -1,11 +1,12 @@
 import { LitElement, html, css } from 'lit';
 import { decodeRoaringLimit } from './roaring.js';
 
-const PAGE_SIZE = 50;
+const INITIAL_LOAD = 50;
+const LOAD_MORE = 25;
 const EDID_PREVIEW_COUNT = 5;
 
 /**
- * Results table with compact display and paging.
+ * Results table with infinite scroll.
  * Shows matching index entries and allows drilling down to individual EDIDs.
  */
 export class ResultsTable extends LitElement {
@@ -16,16 +17,18 @@ export class ResultsTable extends LitElement {
     indexLoader: { type: Object },
     bucketLoader: { type: Object },
     activeTab: { type: String },
-    _currentPage: { type: Number, state: true },
+    _visibleCount: { type: Number, state: true },
     _expandedKey: { type: String, state: true },
     _expandedEdids: { type: Array, state: true },
     _expandedLoading: { type: Boolean, state: true },
+    _expandedError: { type: String, state: true },
     _expandedTotal: { type: Number, state: true },
   };
 
   static styles = css`
     :host {
       display: block;
+      height: 100%;
     }
 
     .loading, .empty {
@@ -123,6 +126,11 @@ export class ResultsTable extends LitElement {
       gap: 1rem;
     }
 
+    .edid-item[data-error="true"] {
+      border-left: 2px solid var(--color-accent, #e94560);
+      opacity: 0.7;
+    }
+
     .edid-resolution {
       font-weight: 500;
       min-width: 80px;
@@ -142,44 +150,44 @@ export class ResultsTable extends LitElement {
       margin-left: auto;
     }
 
+    .edid-error {
+      color: var(--color-accent, #e94560);
+      font-size: 0.75rem;
+      font-style: italic;
+    }
+
     .edid-more {
       padding: 0.375rem;
       color: var(--color-text-muted, #888);
       font-size: 0.75rem;
     }
 
-    .pagination {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      padding: 0.75rem;
-      border-top: 1px solid var(--color-border, #2a2a4e);
-      font-size: 0.8125rem;
-    }
-
-    .page-btn {
-      padding: 0.375rem 0.75rem;
-      border: 1px solid var(--color-border, #2a2a4e);
-      background: transparent;
-      color: var(--color-text, #eee);
+    .error-banner {
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      background: rgba(233, 69, 96, 0.1);
+      border: 1px solid var(--color-accent, #e94560);
       border-radius: var(--radius, 4px);
-      cursor: pointer;
+      color: var(--color-accent, #e94560);
       font-size: 0.75rem;
-      transition: background 0.1s;
     }
 
-    .page-btn:hover:not(:disabled) {
-      background: var(--color-surface, #16213e);
-    }
-
-    .page-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .page-info {
+    .load-more {
+      padding: 1rem;
+      text-align: center;
       color: var(--color-text-muted, #888);
+      font-size: 0.75rem;
+    }
+
+    .load-trigger {
+      height: 1px;
+    }
+
+    .results-count {
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--color-text-muted, #888);
+      border-bottom: 1px solid var(--color-border, #2a2a4e);
     }
   `;
 
@@ -191,52 +199,72 @@ export class ResultsTable extends LitElement {
     this.indexLoader = null;
     this.bucketLoader = null;
     this.activeTab = 'products';
-    this._currentPage = 0;
+    this._visibleCount = INITIAL_LOAD;
     this._expandedKey = null;
     this._expandedEdids = [];
     this._expandedLoading = false;
+    this._expandedError = null;
     this._expandedTotal = 0;
+    this._observer = null;
   }
 
   updated(changedProps) {
     if (changedProps.has('results')) {
-      this._currentPage = 0;
+      this._visibleCount = INITIAL_LOAD;
       this._expandedKey = null;
       this._expandedEdids = [];
+      this._expandedError = null;
     }
   }
 
-  get _totalPages() {
-    return Math.ceil(this.results.length / PAGE_SIZE);
+  firstUpdated() {
+    this._setupIntersectionObserver();
   }
 
-  get _pageResults() {
-    const start = this._currentPage * PAGE_SIZE;
-    return this.results.slice(start, start + PAGE_SIZE);
-  }
-
-  _onPrevPage() {
-    if (this._currentPage > 0) {
-      this._currentPage--;
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._observer) {
+      this._observer.disconnect();
     }
   }
 
-  _onNextPage() {
-    if (this._currentPage < this._totalPages - 1) {
-      this._currentPage++;
+  _setupIntersectionObserver() {
+    this._observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && this._visibleCount < this.results.length) {
+          this._visibleCount = Math.min(this._visibleCount + LOAD_MORE, this.results.length);
+        }
+      },
+      { rootMargin: '100px' }
+    );
+  }
+
+  _observeLoadTrigger() {
+    if (this._observer) {
+      const trigger = this.shadowRoot?.querySelector('.load-trigger');
+      if (trigger) {
+        this._observer.disconnect();
+        this._observer.observe(trigger);
+      }
     }
+  }
+
+  get _visibleResults() {
+    return this.results.slice(0, this._visibleCount);
   }
 
   async _onResultClick(result) {
     if (this._expandedKey === result.key) {
       this._expandedKey = null;
       this._expandedEdids = [];
+      this._expandedError = null;
       return;
     }
 
     this._expandedKey = result.key;
     this._expandedEdids = [];
     this._expandedLoading = true;
+    this._expandedError = null;
     this._expandedTotal = 0;
 
     try {
@@ -249,15 +277,21 @@ export class ResultsTable extends LitElement {
       for (const globalIndex of indices.slice(0, EDID_PREVIEW_COUNT)) {
         try {
           const entry = await this.bucketLoader.getByGlobalIndex(globalIndex);
-          edids.push(entry);
+          edids.push({ ...entry, _error: null });
         } catch (err) {
-          console.warn(`Failed to load EDID at index ${globalIndex}:`, err);
+          // Track the error but still show the entry
+          edids.push({
+            _error: err.message || 'Failed to load',
+            _globalIndex: globalIndex,
+            md5Hex: `index-${globalIndex}`,
+          });
         }
       }
 
       this._expandedEdids = edids;
     } catch (err) {
       console.error('Failed to expand result:', err);
+      this._expandedError = err.message || 'Failed to load EDID data';
     } finally {
       this._expandedLoading = false;
     }
@@ -276,19 +310,22 @@ export class ResultsTable extends LitElement {
       return html`<div class="empty">No results. Try searching above.</div>`;
     }
 
-    const start = this._currentPage * PAGE_SIZE + 1;
-    const end = Math.min(start + PAGE_SIZE - 1, this.results.length);
+    const hasMore = this._visibleCount < this.results.length;
+
+    // Schedule observer setup after render
+    this.updateComplete.then(() => this._observeLoadTrigger());
 
     return html`
+      <div class="results-count">${this.results.length} results</div>
       <ul class="results-list">
-        ${this._pageResults.map(result => this._renderResult(result))}
+        ${this._visibleResults.map(result => this._renderResult(result))}
       </ul>
-      ${this._totalPages > 1 ? html`
-        <div class="pagination">
-          <button class="page-btn" ?disabled=${this._currentPage === 0} @click=${this._onPrevPage}>Prev</button>
-          <span class="page-info">${start}-${end} of ${this.results.length}</span>
-          <button class="page-btn" ?disabled=${this._currentPage >= this._totalPages - 1} @click=${this._onNextPage}>Next</button>
+      ${hasMore ? html`
+        <div class="load-more">
+          <div class="spinner" style="display: inline-block; vertical-align: middle;"></div>
+          Loading more...
         </div>
+        <div class="load-trigger"></div>
       ` : ''}
     `;
   }
@@ -312,8 +349,16 @@ export class ResultsTable extends LitElement {
       return html`<div class="expanded-content"><div class="loading"><div class="spinner"></div>Loading...</div></div>`;
     }
 
+    if (this._expandedError) {
+      return html`
+        <div class="expanded-content">
+          <div class="error-banner">Error: ${this._expandedError}</div>
+        </div>
+      `;
+    }
+
     if (this._expandedEdids.length === 0) {
-      return html`<div class="expanded-content"><div class="empty">No EDID entries found.</div></div>`;
+      return html`<div class="expanded-content"><div class="empty">No EDID entries in bitmap.</div></div>`;
     }
 
     return html`
@@ -329,6 +374,16 @@ export class ResultsTable extends LitElement {
   }
 
   _renderEdid(edid) {
+    // Handle error case
+    if (edid._error) {
+      return html`
+        <li class="edid-item" data-error="true">
+          <span class="edid-error">Failed to load: ${edid._error}</span>
+          <span class="edid-hash">#${edid._globalIndex}</span>
+        </li>
+      `;
+    }
+
     const resolution = edid.widthPx && edid.heightPx
       ? `${edid.widthPx}x${edid.heightPx}`
       : '?';
