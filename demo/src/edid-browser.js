@@ -43,6 +43,7 @@ export class EdidBrowser extends LitElement {
       flex: 1;
       min-height: 0;
       display: flex;
+      flex-direction: row;  /* Default to wide layout */
       overflow: hidden;
     }
 
@@ -68,6 +69,7 @@ export class EdidBrowser extends LitElement {
     }
 
     :host([layout="stacked"]) .results-section {
+      width: auto;
       height: 300px;
       flex-shrink: 0;
       border-bottom: 1px solid var(--color-border, #2a2a4e);
@@ -86,6 +88,7 @@ export class EdidBrowser extends LitElement {
 
     :host([layout="mobile"]) .results-section,
     :host([layout="mobile"]) .detail-section {
+      width: auto;
       position: absolute;
       top: 0;
       left: 0;
@@ -113,11 +116,17 @@ export class EdidBrowser extends LitElement {
     .results-section {
       overflow-y: auto;
       background: var(--color-bg, #1a1a2e);
+      /* Default to wide layout */
+      width: 450px;
+      flex-shrink: 0;
     }
 
     .detail-section {
       overflow-y: auto;
       background: var(--color-surface, #16213e);
+      /* Default to wide layout */
+      flex: 1;
+      min-width: 0;
     }
 
     .status-bar {
@@ -193,6 +202,10 @@ export class EdidBrowser extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+
+    // Set default layout immediately
+    this.setAttribute('layout', 'wide');
+
     this.indexLoader = new IndexLoader(this.baseUrl);
     this.bucketLoader = new BucketLoader(this.baseUrl);
 
