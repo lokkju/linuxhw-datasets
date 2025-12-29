@@ -63,8 +63,7 @@ export class EdidBrowser extends LitElement {
     }
 
     :host([layout="wide"]) .detail-section {
-      flex: 1;
-      min-width: 0;
+      flex: 1 1 auto;
     }
 
     /* Stacked layout: results top with fixed height, detail below */
@@ -129,9 +128,9 @@ export class EdidBrowser extends LitElement {
     .detail-section {
       overflow-y: auto;
       background: var(--color-surface, #16213e);
-      /* Default to wide layout */
-      flex: 1;
-      min-width: 400px;
+      /* Take remaining space */
+      flex: 1 1 auto;
+      width: 0;
     }
 
     .status-bar {
