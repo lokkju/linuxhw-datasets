@@ -1,6 +1,7 @@
 """Generate compact binary files from DuckDB database."""
 
 import json
+import re
 import struct
 from pathlib import Path
 
@@ -11,6 +12,10 @@ from tqdm import tqdm
 # Bucket file format constants
 BUCKET_MAGIC = b"EDIB"
 BUCKET_VERSION = 1
+
+# Packed index file format constants
+INDEX_MAGIC = b"EIDX"
+INDEX_VERSION = 1
 
 
 def generate_compact_files(
@@ -26,10 +31,14 @@ def generate_compact_files(
     # Create output directories
     buckets_dir = output_path / "buckets"
     metadata_dir = output_path / "metadata"
-    indexes_dir = metadata_dir / "indexes"
     buckets_dir.mkdir(parents=True, exist_ok=True)
     metadata_dir.mkdir(parents=True, exist_ok=True)
-    indexes_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clean up old indexes directory if it exists
+    old_indexes_dir = metadata_dir / "indexes"
+    if old_indexes_dir.exists():
+        import shutil
+        shutil.rmtree(old_indexes_dir)
 
     conn = duckdb.connect(str(db_path), read_only=True)
 
@@ -78,14 +87,20 @@ def generate_compact_files(
         stats["buckets_written"] += 1
         stats["total_bytes"] += bucket_path.stat().st_size
 
-    # Build and write Roaring bitmap indexes
-    vendor_stats = build_roaring_index(conn, "path_vendor", indexes_dir / "vendors", md5_to_index)
-    model_stats = build_roaring_index(conn, "path_model", indexes_dir / "models", md5_to_index)
-    size_stats = build_screen_size_index(conn, indexes_dir / "sizes", md5_to_index)
+    # Build and write packed Roaring bitmap indexes
+    vendor_stats = build_packed_index(
+        conn, "path_vendor", metadata_dir / "vendors.idx", md5_to_index
+    )
+    model_stats = build_model_index(
+        conn, metadata_dir / "models.idx", md5_to_index
+    )
+    size_stats = build_packed_size_index(
+        conn, metadata_dir / "sizes.idx", md5_to_index
+    )
 
     # Write manifest
     manifest = {
-        "version": 2,
+        "version": 3,
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
         "indexes": {
@@ -200,19 +215,97 @@ def encode_metadata(
     )
 
 
-def build_roaring_index(
+def write_packed_index(output_path: Path, entries: list[tuple[str, BitMap]]) -> dict:
+    """Write a packed index file containing all bitmaps.
+
+    Format:
+        Header (16 bytes):
+            magic: 4 bytes "EIDX"
+            version: 2 bytes
+            entry_count: 4 bytes
+            reserved: 6 bytes
+
+        Entry table (12 bytes per entry):
+            string_offset: 4 bytes (offset into strings section)
+            string_length: 2 bytes
+            bitmap_offset: 4 bytes (offset into bitmaps section)
+            bitmap_length: 2 bytes (actually stored as length, max 65535)
+
+        Strings section:
+            UTF-8 encoded strings, packed
+
+        Bitmaps section:
+            Serialized Roaring bitmaps, packed
+    """
+    entry_count = len(entries)
+    header_size = 16
+    entry_table_size = entry_count * 12
+
+    # Build strings and bitmaps sections
+    strings_data = bytearray()
+    bitmaps_data = bytearray()
+    entry_table = []
+
+    for key, bitmap in entries:
+        key_bytes = key.encode("utf-8")
+        bitmap_bytes = bitmap.serialize()
+
+        entry_table.append({
+            "string_offset": len(strings_data),
+            "string_length": len(key_bytes),
+            "bitmap_offset": len(bitmaps_data),
+            "bitmap_length": len(bitmap_bytes),
+        })
+
+        strings_data.extend(key_bytes)
+        bitmaps_data.extend(bitmap_bytes)
+
+    # Calculate section offsets
+    strings_offset = header_size + entry_table_size
+    bitmaps_offset = strings_offset + len(strings_data)
+
+    # Build file
+    data = bytearray()
+
+    # Header
+    data.extend(INDEX_MAGIC)
+    data.extend(struct.pack("<H", INDEX_VERSION))
+    data.extend(struct.pack("<I", entry_count))
+    data.extend(b"\x00" * 6)  # Reserved
+
+    # Entry table
+    for entry in entry_table:
+        data.extend(struct.pack(
+            "<IHIH",
+            strings_offset + entry["string_offset"],
+            entry["string_length"],
+            bitmaps_offset + entry["bitmap_offset"],
+            entry["bitmap_length"],
+        ))
+
+    # Strings section
+    data.extend(strings_data)
+
+    # Bitmaps section
+    data.extend(bitmaps_data)
+
+    output_path.write_bytes(bytes(data))
+
+    return {
+        "count": entry_count,
+        "total_bytes": len(data),
+        "strings_bytes": len(strings_data),
+        "bitmaps_bytes": len(bitmaps_data),
+    }
+
+
+def build_packed_index(
     conn: duckdb.DuckDBPyConnection,
     column: str,
-    output_dir: Path,
+    output_path: Path,
     md5_to_index: dict[str, int],
 ) -> dict:
-    """Build Roaring bitmap index for a column.
-
-    Creates one .roaring file per unique value containing the bitmap
-    of entry indices.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+    """Build a packed Roaring bitmap index for a column."""
     result = conn.execute(f"""
         SELECT {column}, LIST(md5_hex ORDER BY md5_hex)
         FROM edids
@@ -221,45 +314,107 @@ def build_roaring_index(
         ORDER BY {column}
     """).fetchall()
 
-    stats = {"count": 0, "total_bytes": 0}
-    index_manifest = {}
-
+    entries = []
     for value, md5_list in result:
-        # Build bitmap of entry indices
         bitmap = BitMap()
         for md5_hex in md5_list:
             if md5_hex in md5_to_index:
                 bitmap.add(md5_to_index[md5_hex])
+        entries.append((str(value), bitmap))
 
-        # Serialize and write
-        serialized = bitmap.serialize()
-        # Sanitize filename
-        safe_name = sanitize_filename(str(value))
-        file_path = output_dir / f"{safe_name}.roaring"
-        file_path.write_bytes(serialized)
-
-        index_manifest[str(value)] = {
-            "file": safe_name + ".roaring",
-            "count": len(bitmap),
-        }
-        stats["count"] += 1
-        stats["total_bytes"] += len(serialized)
-
-    # Write manifest for this index
-    manifest_path = output_dir / "_manifest.json"
-    manifest_path.write_text(json.dumps(index_manifest, indent=2))
-
-    return stats
+    return write_packed_index(output_path, entries)
 
 
-def build_screen_size_index(
+def strip_vendor_prefix(product_name: str, vendor: str | None) -> str:
+    """Strip vendor prefix from product name if it matches.
+
+    Examples:
+        "DELL U2412M" with vendor "Dell" -> "U2412M"
+        "LG ULTRAWIDE" with vendor "Goldstar" -> "ULTRAWIDE" (LG is Goldstar's brand)
+        "BenQ GW2480" with vendor "BenQ" -> "GW2480"
+    """
+    if not product_name or not vendor:
+        return product_name
+
+    # Common brand mappings (vendor directory name -> EDID brand prefixes)
+    brand_prefixes = {
+        "goldstar": ["lg"],
+        "dell": ["dell"],
+        "benq": ["benq"],
+        "ancor communications": ["asus"],
+        "acer": ["acer"],
+        "samsung": ["samsung", "sam"],
+        "hewlett packard": ["hp"],
+        "lenovo": ["lenovo", "len"],
+        "philips": ["philips"],
+        "sony": ["sony"],
+        "panasonic": ["panasonic"],
+        "toshiba": ["toshiba"],
+        "lg electronics": ["lg"],
+        "asus": ["asus"],
+        "viewsonic": ["viewsonic"],
+        "aoc": ["aoc"],
+    }
+
+    vendor_lower = vendor.lower()
+    prefixes_to_try = [vendor_lower]
+
+    # Add known brand prefixes for this vendor
+    if vendor_lower in brand_prefixes:
+        prefixes_to_try.extend(brand_prefixes[vendor_lower])
+
+    product_lower = product_name.lower()
+    for prefix in prefixes_to_try:
+        # Check for "PREFIX " or "PREFIX-" at start
+        if product_lower.startswith(prefix + " "):
+            return product_name[len(prefix) + 1:].strip()
+        if product_lower.startswith(prefix + "-"):
+            return product_name[len(prefix) + 1:].strip()
+
+    return product_name
+
+
+def build_model_index(
     conn: duckdb.DuckDBPyConnection,
-    output_dir: Path,
+    output_path: Path,
     md5_to_index: dict[str, int],
 ) -> dict:
-    """Build Roaring bitmap index for screen sizes (in inches)."""
-    output_dir.mkdir(parents=True, exist_ok=True)
+    """Build a packed model index using product_name with vendor prefix stripped."""
+    result = conn.execute("""
+        SELECT product_name, path_vendor, md5_hex
+        FROM edids
+        WHERE product_name IS NOT NULL
+        ORDER BY product_name
+    """).fetchall()
 
+    # Group by normalized model name
+    model_to_md5s: dict[str, list[str]] = {}
+    for product_name, vendor, md5_hex in result:
+        # Strip vendor prefix
+        model = strip_vendor_prefix(product_name, vendor)
+        if model:
+            if model not in model_to_md5s:
+                model_to_md5s[model] = []
+            model_to_md5s[model].append(md5_hex)
+
+    # Build bitmaps
+    entries = []
+    for model in sorted(model_to_md5s.keys()):
+        bitmap = BitMap()
+        for md5_hex in model_to_md5s[model]:
+            if md5_hex in md5_to_index:
+                bitmap.add(md5_to_index[md5_hex])
+        entries.append((model, bitmap))
+
+    return write_packed_index(output_path, entries)
+
+
+def build_packed_size_index(
+    conn: duckdb.DuckDBPyConnection,
+    output_path: Path,
+    md5_to_index: dict[str, int],
+) -> dict:
+    """Build a packed screen size index."""
     result = conn.execute("""
         SELECT screen_size_inches, LIST(md5_hex ORDER BY md5_hex)
         FROM edids
@@ -268,41 +423,12 @@ def build_screen_size_index(
         ORDER BY screen_size_inches
     """).fetchall()
 
-    stats = {"count": 0, "total_bytes": 0}
-    index_manifest = {}
-
+    entries = []
     for size, md5_list in result:
-        # Build bitmap of entry indices
         bitmap = BitMap()
         for md5_hex in md5_list:
             if md5_hex in md5_to_index:
                 bitmap.add(md5_to_index[md5_hex])
+        entries.append((f"{size:.1f}", bitmap))
 
-        # Serialize and write
-        serialized = bitmap.serialize()
-        # Use size as filename (e.g., "27.0.roaring")
-        size_str = f"{size:.1f}"
-        file_path = output_dir / f"{size_str}.roaring"
-        file_path.write_bytes(serialized)
-
-        index_manifest[size_str] = {
-            "file": size_str + ".roaring",
-            "count": len(bitmap),
-        }
-        stats["count"] += 1
-        stats["total_bytes"] += len(serialized)
-
-    # Write manifest for this index
-    manifest_path = output_dir / "_manifest.json"
-    manifest_path.write_text(json.dumps(index_manifest, indent=2))
-
-    return stats
-
-
-def sanitize_filename(s: str) -> str:
-    """Sanitize a string for use as a filename."""
-    import re
-    # Replace problematic characters with underscore
-    s = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', s)
-    # Limit length
-    return s[:200]
+    return write_packed_index(output_path, entries)
