@@ -1,0 +1,51 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 26 cf f4 03 00 00 00 00
+31 19 01 03 80 19 0e 78 0a 40 71 96 57 5a 97 24
+1c 4d 58 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 4c 1d 56 c2 50 00 26 30 44 2a
+ca 00 00 90 10 00 00 19 00 00 00 0f 00 00 00 00
+00 00 00 00 00 00 00 00 00 01 00 00 00 fe 00 53
+54 41 52 52 59 0a 20 20 20 20 20 20 00 00 00 fe
+00 4b 52 31 31 36 45 41 38 54 52 42 20 0a 00 47
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.3
+  Vendor & Product Identification:
+    Manufacturer: IVO
+    Model: 1012
+    Made in: week 49 of 2015
+  Basic Display Parameters & Features:
+    Digital display
+    Maximum image size: 25 cm x 14 cm
+    Gamma: 2.20
+    RGB color display
+    First detailed timing is the preferred timing
+  Color Characteristics:
+    Red  : 0.5869, 0.3398
+    Green: 0.3515, 0.5898
+    Blue : 0.1416, 0.1123
+    White: 0.3007, 0.3447
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1366x768    59.648788 Hz 683:384   48.077 kHz     75.000000 MHz (256 mm x 144 mm)
+                 Hfront   68 Hsync  42 Hback   84 Hpol N
+                 Vfront   12 Vsync  10 Vback   16 Vpol N
+    Manufacturer-Specified Display Descriptor (0x0f): 00 0f 00 00 00 00 00 00 00 00 00 00 00 00 00 01 '................'
+    Alphanumeric Data String: 'STARRY'
+    Alphanumeric Data String: 'KR116EA8TRB '
+Checksum: 0x47
+
+----------------
+
+Failures:
+
+Block 0, Base EDID:
+  Alphanumeric Data String: One or more trailing spaces.
+  Missing Display Product Name.
+  Missing Display Range Limits Descriptor.
+
+EDID conformity: FAIL

@@ -1,0 +1,58 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 06 af 6c 20 00 00 00 00
+00 16 01 04 95 1c 10 78 02 20 e5 92 55 54 92 28
+25 50 54 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 ce 1d 56 f0 50 00 16 30 30 20
+6a 00 15 9c 10 00 00 18 df 13 56 f0 50 00 16 30
+30 20 6a 00 15 9c 10 00 00 18 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02
+00 0d 41 ff 0c 3c 6e 0e 0d 18 6e 20 20 20 00 db
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: AUO
+    Model: 8300
+    Made in: 2012
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 6
+    DisplayPort interface
+    Maximum image size: 28 cm x 16 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+  Color Characteristics:
+    Red  : 0.5703, 0.3339
+    Green: 0.3281, 0.5703
+    Blue : 0.1591, 0.1464
+    White: 0.3134, 0.3291
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1366x768    60.138405 Hz 683:384   47.509 kHz     76.300000 MHz (277 mm x 156 mm)
+                 Hfront   48 Hsync  32 Hback  160 Hpol N
+                 Vfront    6 Vsync  10 Vback    6 Vpol N
+    DTD 2:  1366x768    40.094897 Hz 683:384   31.675 kHz     50.870000 MHz (277 mm x 156 mm)
+                 Hfront   48 Hsync  32 Hback  160 Hpol N
+                 Vfront    6 Vsync  10 Vback    6 Vpol N
+    Empty Descriptor
+    Manufacturer-Specified Display Descriptor (0x02): 00 02 00 0d 41 ff 0c 3c 6e 0e 0d 18 6e 20 20 20 '....A..<n...n   '
+Checksum: 0xdb
+
+----------------
+
+Warnings:
+
+Block 0, Base EDID:
+  Missing Display Product Name.
+
+Failures:
+
+Block 0, Base EDID:
+  Empty Descriptor: Use Dummy Descriptor instead of all zeroes.
+
+EDID conformity: FAIL

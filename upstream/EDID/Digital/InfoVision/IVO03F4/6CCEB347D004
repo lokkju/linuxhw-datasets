@@ -1,0 +1,53 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 26 cf f4 03 00 00 00 00
+1c 1b 01 03 95 22 13 78 0a 35 ac 94 5e 57 98 28
+27 51 5f 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 3e 1c 56 a0 50 00 16 30 30 20
+36 00 58 c1 10 00 00 19 00 00 00 0f 00 00 00 00
+00 00 00 00 00 00 00 00 00 01 00 00 00 fe 00 53
+54 41 52 52 59 0a 20 20 20 20 20 20 00 00 00 fe
+00 42 48 31 35 36 4c 41 33 53 52 41 20 0a 00 63
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.3
+  Vendor & Product Identification:
+    Manufacturer: IVO
+    Model: 1012
+    Made in: week 28 of 2017
+  Basic Display Parameters & Features:
+    Digital display
+    DFP 1.x compatible TMDS
+    Maximum image size: 34 cm x 19 cm
+    Gamma: 2.20
+    RGB color display
+    First detailed timing is the preferred timing
+  Color Characteristics:
+    Red  : 0.5781, 0.3701
+    Green: 0.3408, 0.5947
+    Blue : 0.1582, 0.1542
+    White: 0.3193, 0.3710
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1366x768    59.973124 Hz 683:384   47.379 kHz     72.300000 MHz (344 mm x 193 mm)
+                 Hfront   48 Hsync  32 Hback   80 Hpol N
+                 Vfront    3 Vsync   6 Vback   13 Vpol N
+    Manufacturer-Specified Display Descriptor (0x0f): 00 0f 00 00 00 00 00 00 00 00 00 00 00 00 00 01 '................'
+    Alphanumeric Data String: 'STARRY'
+    Alphanumeric Data String: 'BH156LA3SRA '
+Checksum: 0x63
+
+----------------
+
+Failures:
+
+Block 0, Base EDID:
+  Basic Display Parameters & Features: Digital Video Interface Standard set to reserved value 0x14.
+  Alphanumeric Data String: One or more trailing spaces.
+  Missing Display Product Name.
+  Missing Display Range Limits Descriptor.
+
+EDID conformity: FAIL

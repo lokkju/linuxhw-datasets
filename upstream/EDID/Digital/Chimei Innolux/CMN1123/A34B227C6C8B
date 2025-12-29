@@ -1,0 +1,51 @@
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 0d ae 23 11 00 00 00 00
+00 16 01 04 a5 21 0e 78 0a 44 b5 a0 57 59 97 28
+12 50 54 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 10 27 00 1e 71 00 22 30 0c 40
+33 00 50 90 10 00 00 1a 00 00 00 fe 00 4e 31 34
+34 4e 47 45 2d 45 34 31 0a 20 00 00 00 fe 00 43
+4d 4e 0a 20 20 20 20 20 20 20 20 20 00 00 00 fe
+00 4e 31 34 34 4e 47 45 2d 45 34 31 0a 20 00 b1
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: CMN
+    Model: 4387
+    Made in: 2012
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 8
+    DisplayPort interface
+    Maximum image size: 33 cm x 14 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4, YCrCb 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+  Color Characteristics:
+    Red  : 0.6259, 0.3398
+    Green: 0.3486, 0.5898
+    Blue : 0.1582, 0.0732
+    White: 0.3134, 0.3291
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1792x768    60.003984 Hz   7:3     48.123 kHz    100.000000 MHz (336 mm x 144 mm)
+                 Hfront   12 Hsync  64 Hback  210 Hpol P
+                 Vfront    3 Vsync   3 Vback   28 Vpol N
+    Alphanumeric Data String: 'N144NGE-E41'
+    Alphanumeric Data String: 'CMN'
+    Alphanumeric Data String: 'N144NGE-E41'
+Checksum: 0xb1
+
+----------------
+
+Warnings:
+
+Block 0, Base EDID:
+  Missing Display Product Name.
+
+EDID conformity: PASS
