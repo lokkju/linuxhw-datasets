@@ -3,6 +3,7 @@ import { IndexLoader } from './index-loader.js';
 import { BucketLoader } from './bucket-loader.js';
 import './search-tabs.js';
 import './results-table.js';
+import './edid-detail.js';
 
 /**
  * Main EDID browser component.
@@ -18,6 +19,8 @@ export class EdidBrowser extends LitElement {
     isLoadingIndex: { type: Boolean, state: true },
     _status: { type: Object, state: true },
     _selectedEdid: { type: Object, state: true },
+    _layoutMode: { type: String, state: true },  // 'wide', 'stacked', 'mobile'
+    _showDetail: { type: Boolean, state: true }, // For mobile slide navigation
   };
 
   static styles = css`
@@ -35,11 +38,86 @@ export class EdidBrowser extends LitElement {
       flex-shrink: 0;
     }
 
-    .results-section {
+    /* Main content area - holds results and detail */
+    .main-content {
       flex: 1;
       min-height: 0;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Wide layout: side by side with fixed results width */
+    :host([layout="wide"]) .main-content {
+      flex-direction: row;
+    }
+
+    :host([layout="wide"]) .results-section {
+      width: 450px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--color-border, #2a2a4e);
+    }
+
+    :host([layout="wide"]) .detail-section {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Stacked layout: results top with fixed height, detail below */
+    :host([layout="stacked"]) .main-content {
+      flex-direction: column;
+    }
+
+    :host([layout="stacked"]) .results-section {
+      height: 300px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--color-border, #2a2a4e);
+    }
+
+    :host([layout="stacked"]) .detail-section {
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Mobile layout: slide between screens */
+    :host([layout="mobile"]) .main-content {
+      position: relative;
+      overflow: hidden;
+    }
+
+    :host([layout="mobile"]) .results-section,
+    :host([layout="mobile"]) .detail-section {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      transition: transform 0.3s ease-in-out;
+    }
+
+    :host([layout="mobile"]) .results-section {
+      transform: translateX(0);
+    }
+
+    :host([layout="mobile"][show-detail]) .results-section {
+      transform: translateX(-100%);
+    }
+
+    :host([layout="mobile"]) .detail-section {
+      transform: translateX(100%);
+    }
+
+    :host([layout="mobile"][show-detail]) .detail-section {
+      transform: translateX(0);
+    }
+
+    .results-section {
       overflow-y: auto;
       background: var(--color-bg, #1a1a2e);
+    }
+
+    .detail-section {
+      overflow-y: auto;
+      background: var(--color-surface, #16213e);
     }
 
     .status-bar {
@@ -108,6 +186,9 @@ export class EdidBrowser extends LitElement {
     this.bucketLoader = null;
     this._status = { message: 'Ready', type: 'info', timestamp: Date.now() };
     this._selectedEdid = null;
+    this._layoutMode = 'wide';
+    this._showDetail = false;
+    this._resizeObserver = null;
   }
 
   connectedCallback() {
@@ -120,6 +201,52 @@ export class EdidBrowser extends LitElement {
 
     // Progressive background loading - smallest/most useful first
     this._preloadIndexes();
+
+    // Set up resize observer for responsive layout
+    this._resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        this._updateLayout(entry.contentRect.width, entry.contentRect.height);
+      }
+    });
+    this._resizeObserver.observe(this);
+
+    // Initial layout check
+    requestAnimationFrame(() => {
+      const rect = this.getBoundingClientRect();
+      this._updateLayout(rect.width, rect.height);
+    });
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = null;
+    }
+  }
+
+  _updateLayout(width, height) {
+    let mode;
+    if (width < 600) {
+      mode = 'mobile';
+    } else if (width >= 1000) {
+      mode = 'wide';
+    } else {
+      // Between 600-1000px: use stacked if tall enough, otherwise mobile-like
+      mode = height >= 600 ? 'stacked' : 'mobile';
+    }
+
+    if (mode !== this._layoutMode) {
+      this._layoutMode = mode;
+      this.setAttribute('layout', mode);
+    }
+
+    // Update show-detail attribute for mobile sliding
+    if (this._showDetail) {
+      this.setAttribute('show-detail', '');
+    } else {
+      this.removeAttribute('show-detail');
+    }
   }
 
   async _preloadIndexes() {
@@ -148,8 +275,16 @@ export class EdidBrowser extends LitElement {
 
   _onEdidSelect(e) {
     this._selectedEdid = e.detail.edid;
-    // Future: This will trigger showing the detail panel
-    // On mobile, this would slide to a new screen
+    // On mobile, slide to detail screen
+    if (this._layoutMode === 'mobile') {
+      this._showDetail = true;
+      this.setAttribute('show-detail', '');
+    }
+  }
+
+  _onDetailBack() {
+    this._showDetail = false;
+    this.removeAttribute('show-detail');
   }
 
   _formatTime(timestamp) {
@@ -167,17 +302,26 @@ export class EdidBrowser extends LitElement {
           @search=${this._onSearch}
         ></search-tabs>
       </div>
-      <div class="results-section">
-        <results-table
-          .results=${this.results}
-          .isLoading=${this.isSearching}
-          .isLoadingIndex=${this.isLoadingIndex}
-          .indexLoader=${this.indexLoader}
-          .bucketLoader=${this.bucketLoader}
-          .activeTab=${this.activeTab}
-          @status=${this._onStatus}
-          @edid-select=${this._onEdidSelect}
-        ></results-table>
+      <div class="main-content">
+        <div class="results-section">
+          <results-table
+            .results=${this.results}
+            .isLoading=${this.isSearching}
+            .isLoadingIndex=${this.isLoadingIndex}
+            .indexLoader=${this.indexLoader}
+            .bucketLoader=${this.bucketLoader}
+            .activeTab=${this.activeTab}
+            @status=${this._onStatus}
+            @edid-select=${this._onEdidSelect}
+          ></results-table>
+        </div>
+        <div class="detail-section">
+          <edid-detail
+            .edid=${this._selectedEdid}
+            ?mobile=${this._layoutMode === 'mobile'}
+            @back=${this._onDetailBack}
+          ></edid-detail>
+        </div>
       </div>
       <div class="status-bar">
         <span class="status-indicator" data-type=${this._status.type}></span>
