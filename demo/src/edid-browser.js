@@ -313,8 +313,15 @@ export class EdidBrowser extends LitElement {
     for (const name of loadOrder) {
       try {
         this._setStatus(`Preloading ${name} index...`, 'loading');
-        await this.indexLoader.load(name);
-        this._setStatus(`Loaded ${name} index`, 'success');
+        const index = await this.indexLoader.load(name);
+
+        // Show initial results for first (active) tab
+        if (name === this.activeTab) {
+          this.results = index.entries;
+          this._setStatus(`Showing ${index.entries.length} ${name}`, 'success');
+        } else {
+          this._setStatus(`Loaded ${name} index`, 'success');
+        }
       } catch (err) {
         console.warn(`Failed to preload ${name}:`, err);
         this._setStatus(`Failed to preload ${name}: ${err.message}`, 'warning');
@@ -402,17 +409,25 @@ export class EdidBrowser extends LitElement {
     this.results = [];
     this.searchQuery = '';
     this._setStatus(`Switched to ${e.detail.tab}`, 'info');
+    // Load initial results for new tab
+    this._loadInitialResults(e.detail.tab);
+  }
+
+  async _loadInitialResults(tab) {
+    try {
+      const index = await this.indexLoader.load(tab);
+      // Show all entries (already sorted alphabetically)
+      this.results = index.entries;
+      this._setStatus(`Showing ${index.entries.length} ${tab}`, 'success');
+    } catch (err) {
+      console.error('Failed to load initial results:', err);
+    }
   }
 
   async _onSearch(e) {
     const { tab, query } = e.detail;
-    if (!query.trim()) {
-      this.results = [];
-      return;
-    }
 
     this.searchQuery = query;
-    this._setStatus(`Searching "${query}"...`, 'loading');
 
     try {
       // Check if index needs loading
@@ -426,11 +441,16 @@ export class EdidBrowser extends LitElement {
       const index = await this.indexLoader.load(tab);
       this.isLoadingIndex = false;
 
-      // Now search
+      // Search or show all
       this.isSearching = true;
-      const matches = index.search(query);
-      this.results = matches;
-      this._setStatus(`Found ${matches.length} results for "${query}"`, 'success');
+      if (!query.trim()) {
+        this.results = index.entries;
+        this._setStatus(`Showing ${index.entries.length} ${tab}`, 'success');
+      } else {
+        const matches = index.search(query);
+        this.results = matches;
+        this._setStatus(`Found ${matches.length} results for "${query}"`, 'success');
+      }
     } catch (err) {
       console.error('Search failed:', err);
       this.results = [];
