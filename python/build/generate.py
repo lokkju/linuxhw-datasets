@@ -26,8 +26,10 @@ def generate_compact_files(
     # Create output directories
     buckets_dir = output_path / "buckets"
     metadata_dir = output_path / "metadata"
+    indexes_dir = metadata_dir / "indexes"
     buckets_dir.mkdir(parents=True, exist_ok=True)
     metadata_dir.mkdir(parents=True, exist_ok=True)
+    indexes_dir.mkdir(parents=True, exist_ok=True)
 
     conn = duckdb.connect(str(db_path), read_only=True)
 
@@ -39,14 +41,20 @@ def generate_compact_files(
 
     # Get all entries ordered by MD5 hash
     entries = conn.execute("""
-        SELECT md5_hash, raw_edid, vendor, model, product_name,
+        SELECT md5_hash, raw_edid, path_vendor, path_model, product_name,
                manufacture_year, width_px, height_px, width_mm, height_mm,
-               display_type
+               display_type, screen_size_inches
         FROM edids
         ORDER BY md5_hash
     """).fetchall()
 
     stats["total_entries"] = len(entries)
+
+    # Build entry index (md5_hex -> row index) for bitmap lookups
+    md5_to_index = {}
+    for i, entry in enumerate(entries):
+        md5_hex = entry[0].hex()
+        md5_to_index[md5_hex] = i
 
     # Group entries by first byte of MD5 (bucket prefix)
     buckets: dict[int, list] = {i: [] for i in range(256)}
@@ -70,24 +78,21 @@ def generate_compact_files(
         stats["buckets_written"] += 1
         stats["total_bytes"] += bucket_path.stat().st_size
 
-    # Build indexes
-    vendor_index = build_vendor_index(conn)
-    resolution_index = build_resolution_index(conn)
-    year_index = build_year_index(conn)
-
-    # Write indexes as JSON for now (TODO: FST format)
-    (metadata_dir / "vendors.json").write_text(json.dumps(vendor_index, indent=2))
-    (metadata_dir / "resolutions.json").write_text(json.dumps(resolution_index, indent=2))
-    (metadata_dir / "years.json").write_text(json.dumps(year_index, indent=2))
+    # Build and write Roaring bitmap indexes
+    vendor_stats = build_roaring_index(conn, "path_vendor", indexes_dir / "vendors", md5_to_index)
+    model_stats = build_roaring_index(conn, "path_model", indexes_dir / "models", md5_to_index)
+    size_stats = build_screen_size_index(conn, indexes_dir / "sizes", md5_to_index)
 
     # Write manifest
     manifest = {
-        "version": 1,
+        "version": 2,
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
-        "vendors": len(vendor_index),
-        "resolutions": len(resolution_index),
-        "years": len(year_index),
+        "indexes": {
+            "vendors": vendor_stats,
+            "models": model_stats,
+            "sizes": size_stats,
+        },
     }
     (output_path / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
@@ -127,8 +132,9 @@ def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
 
     # Metadata (16 bytes each)
     for entry in entries:
-        _md5, _raw, vendor, model, product_name, year, w_px, h_px, w_mm, h_mm, dtype = entry
-        metadata = encode_metadata(vendor, model, year, w_px, h_px, w_mm, h_mm, dtype)
+        (_md5, _raw, path_vendor, path_model, product_name, year,
+         w_px, h_px, w_mm, h_mm, dtype, screen_size) = entry
+        metadata = encode_metadata(path_vendor, path_model, year, w_px, h_px, w_mm, h_mm, dtype)
         data.extend(metadata)
 
     # Build values section and offsets
@@ -194,37 +200,109 @@ def encode_metadata(
     )
 
 
-def build_vendor_index(conn: duckdb.DuckDBPyConnection) -> dict:
-    """Build vendor -> MD5 hex list index."""
-    result = conn.execute("""
-        SELECT vendor, LIST(md5_hex ORDER BY md5_hex)
+def build_roaring_index(
+    conn: duckdb.DuckDBPyConnection,
+    column: str,
+    output_dir: Path,
+    md5_to_index: dict[str, int],
+) -> dict:
+    """Build Roaring bitmap index for a column.
+
+    Creates one .roaring file per unique value containing the bitmap
+    of entry indices.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    result = conn.execute(f"""
+        SELECT {column}, LIST(md5_hex ORDER BY md5_hex)
         FROM edids
-        WHERE vendor IS NOT NULL
-        GROUP BY vendor
-        ORDER BY vendor
+        WHERE {column} IS NOT NULL
+        GROUP BY {column}
+        ORDER BY {column}
     """).fetchall()
-    return {row[0]: row[1] for row in result}
+
+    stats = {"count": 0, "total_bytes": 0}
+    index_manifest = {}
+
+    for value, md5_list in result:
+        # Build bitmap of entry indices
+        bitmap = BitMap()
+        for md5_hex in md5_list:
+            if md5_hex in md5_to_index:
+                bitmap.add(md5_to_index[md5_hex])
+
+        # Serialize and write
+        serialized = bitmap.serialize()
+        # Sanitize filename
+        safe_name = sanitize_filename(str(value))
+        file_path = output_dir / f"{safe_name}.roaring"
+        file_path.write_bytes(serialized)
+
+        index_manifest[str(value)] = {
+            "file": safe_name + ".roaring",
+            "count": len(bitmap),
+        }
+        stats["count"] += 1
+        stats["total_bytes"] += len(serialized)
+
+    # Write manifest for this index
+    manifest_path = output_dir / "_manifest.json"
+    manifest_path.write_text(json.dumps(index_manifest, indent=2))
+
+    return stats
 
 
-def build_resolution_index(conn: duckdb.DuckDBPyConnection) -> dict:
-    """Build resolution -> MD5 hex list index."""
+def build_screen_size_index(
+    conn: duckdb.DuckDBPyConnection,
+    output_dir: Path,
+    md5_to_index: dict[str, int],
+) -> dict:
+    """Build Roaring bitmap index for screen sizes (in inches)."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     result = conn.execute("""
-        SELECT width_px || 'x' || height_px as res, LIST(md5_hex ORDER BY md5_hex)
+        SELECT screen_size_inches, LIST(md5_hex ORDER BY md5_hex)
         FROM edids
-        WHERE width_px IS NOT NULL AND height_px IS NOT NULL
-        GROUP BY res
-        ORDER BY res
+        WHERE screen_size_inches IS NOT NULL
+        GROUP BY screen_size_inches
+        ORDER BY screen_size_inches
     """).fetchall()
-    return {row[0]: row[1] for row in result}
+
+    stats = {"count": 0, "total_bytes": 0}
+    index_manifest = {}
+
+    for size, md5_list in result:
+        # Build bitmap of entry indices
+        bitmap = BitMap()
+        for md5_hex in md5_list:
+            if md5_hex in md5_to_index:
+                bitmap.add(md5_to_index[md5_hex])
+
+        # Serialize and write
+        serialized = bitmap.serialize()
+        # Use size as filename (e.g., "27.0.roaring")
+        size_str = f"{size:.1f}"
+        file_path = output_dir / f"{size_str}.roaring"
+        file_path.write_bytes(serialized)
+
+        index_manifest[size_str] = {
+            "file": size_str + ".roaring",
+            "count": len(bitmap),
+        }
+        stats["count"] += 1
+        stats["total_bytes"] += len(serialized)
+
+    # Write manifest for this index
+    manifest_path = output_dir / "_manifest.json"
+    manifest_path.write_text(json.dumps(index_manifest, indent=2))
+
+    return stats
 
 
-def build_year_index(conn: duckdb.DuckDBPyConnection) -> dict:
-    """Build year -> MD5 hex list index."""
-    result = conn.execute("""
-        SELECT CAST(manufacture_year AS VARCHAR) as year, LIST(md5_hex ORDER BY md5_hex)
-        FROM edids
-        WHERE manufacture_year IS NOT NULL
-        GROUP BY manufacture_year
-        ORDER BY manufacture_year
-    """).fetchall()
-    return {row[0]: row[1] for row in result}
+def sanitize_filename(s: str) -> str:
+    """Sanitize a string for use as a filename."""
+    import re
+    # Replace problematic characters with underscore
+    s = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', s)
+    # Limit length
+    return s[:200]

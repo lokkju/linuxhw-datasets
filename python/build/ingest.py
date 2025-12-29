@@ -16,7 +16,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             md5_hex VARCHAR NOT NULL,
             raw_edid BLOB NOT NULL,
 
-            -- Parsed metadata
+            -- Parsed metadata (from EDID content)
             vendor VARCHAR,
             model VARCHAR,
             product_name VARCHAR,
@@ -24,12 +24,17 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             manufacture_year INTEGER,
             manufacture_week INTEGER,
 
+            -- Path-derived metadata (from linuxhw/EDID directory structure)
+            path_vendor VARCHAR,
+            path_model VARCHAR,
+
             -- Display properties
             width_px INTEGER,
             height_px INTEGER,
             width_mm INTEGER,
             height_mm INTEGER,
             display_type VARCHAR,
+            screen_size_inches REAL,
 
             -- Source info
             source_path VARCHAR NOT NULL,
@@ -43,8 +48,9 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     # Create indexes for common queries
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_vendor ON edids(vendor)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_resolution ON edids(width_px, height_px)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_path_vendor ON edids(path_vendor)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_path_model ON edids(path_model)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_screen_size ON edids(screen_size_inches)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_year ON edids(manufacture_year)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_display_type ON edids(display_type)")
 
@@ -108,9 +114,11 @@ def ingest_edid_repo(
             md5_hash, md5_hex, raw_edid,
             vendor, model, product_name, serial_number,
             manufacture_year, manufacture_week,
+            path_vendor, path_model,
             width_px, height_px, width_mm, height_mm,
-            display_type, source_path, checksum_valid
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            display_type, screen_size_inches,
+            source_path, checksum_valid
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     # Process files in batches
@@ -143,11 +151,14 @@ def ingest_edid_repo(
             parsed.serial_number,
             parsed.manufacture_year,
             parsed.manufacture_week,
+            parsed.path_vendor,
+            parsed.path_model,
             parsed.width_px,
             parsed.height_px,
             parsed.width_mm,
             parsed.height_mm,
             parsed.display_type,
+            parsed.screen_size_inches,
             relative_path,
             checksum_valid,
         ))

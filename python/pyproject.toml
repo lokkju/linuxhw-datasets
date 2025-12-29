@@ -2,8 +2,8 @@
 name = "edid-dataset"
 version = "0.1.0"
 description = "EDID dataset builder and client library"
-readme = "README.md"
-license = "PolyForm-Shield-1.0.0"
+readme = "../CLAUDE.md"
+license = {file = "../LICENSE"}
 requires-python = ">=3.11"
 authors = [{ name = "lokkju" }]
 keywords = ["edid", "display", "monitor", "dataset"]

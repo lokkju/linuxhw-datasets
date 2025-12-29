@@ -14,7 +14,7 @@ class ParsedEdid:
     md5_hex: str  # 32 char hex string
     raw_edid: bytes  # 128-512 bytes
 
-    # Parsed metadata
+    # Parsed metadata (from EDID content)
     vendor: str | None = None
     model: str | None = None
     product_name: str | None = None
@@ -22,12 +22,17 @@ class ParsedEdid:
     manufacture_year: int | None = None
     manufacture_week: int | None = None
 
+    # Path-derived metadata (from linuxhw/EDID directory structure)
+    path_vendor: str | None = None  # e.g., "Dell", "Samsung"
+    path_model: str | None = None  # e.g., "DELL U2722D"
+
     # Display properties
     width_px: int | None = None
     height_px: int | None = None
     width_mm: int | None = None
     height_mm: int | None = None
     display_type: str | None = None  # 'digital' or 'analog'
+    screen_size_inches: float | None = None  # diagonal size
 
     # Source info
     source_path: str = ""
@@ -127,6 +132,39 @@ def parse_metadata(content: str, edid_bytes: bytes) -> dict:
     return metadata
 
 
+def extract_path_metadata(file_path: Path) -> dict:
+    """Extract vendor and model from linuxhw/EDID path structure.
+
+    Path format: .../Digital/Vendor/Model/edid
+                 .../Analog/Vendor/Model/edid
+    """
+    parts = file_path.parts
+    result = {}
+
+    # Find the Digital/Analog marker to orient ourselves
+    for i, part in enumerate(parts):
+        if part in ("Digital", "Analog"):
+            if i + 2 < len(parts):
+                result["path_vendor"] = parts[i + 1]
+                result["path_model"] = parts[i + 2]
+            break
+
+    return result
+
+
+def calculate_screen_size(width_mm: int | None, height_mm: int | None) -> float | None:
+    """Calculate diagonal screen size in inches from mm dimensions."""
+    if not width_mm or not height_mm:
+        return None
+
+    import math
+
+    diagonal_mm = math.sqrt(width_mm**2 + height_mm**2)
+    diagonal_inches = diagonal_mm / 25.4
+    # Round to nearest 0.5 inch
+    return round(diagonal_inches * 2) / 2
+
+
 def parse_edid_file(file_path: Path) -> ParsedEdid | None:
     """Parse a single edid-decode text file."""
     try:
@@ -142,8 +180,19 @@ def parse_edid_file(file_path: Path) -> ParsedEdid | None:
     md5_hash = hashlib.md5(raw_edid).digest()
     md5_hex = md5_hash.hex()
 
-    # Parse metadata
+    # Parse metadata from EDID content
     metadata = parse_metadata(content, raw_edid)
+
+    # Extract vendor/model from path
+    path_metadata = extract_path_metadata(file_path)
+    metadata.update(path_metadata)
+
+    # Calculate screen size
+    screen_size = calculate_screen_size(
+        metadata.get("width_mm"), metadata.get("height_mm")
+    )
+    if screen_size:
+        metadata["screen_size_inches"] = screen_size
 
     return ParsedEdid(
         md5_hash=md5_hash,
