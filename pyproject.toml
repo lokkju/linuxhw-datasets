@@ -2,8 +2,8 @@
 name = "edid-dataset"
 version = "0.1.0"
 description = "EDID dataset builder and client library"
-readme = "../CLAUDE.md"
-license = {file = "../LICENSE"}
+readme = "CLAUDE.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.11"
 authors = [{ name = "lokkju" }]
 keywords = ["edid", "display", "monitor", "dataset"]
@@ -33,18 +33,19 @@ dev = [
 ]
 
 [project.scripts]
-edid-build = "build.cli:main"
+edid-build = "edid_build.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["build", "edid_dataset"]
+packages = ["src/edid_build", "src/edid_dataset"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
@@ -52,3 +53,4 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
+include = ["src"]

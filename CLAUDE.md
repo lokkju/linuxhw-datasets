@@ -7,36 +7,42 @@ A cross-platform EDID (Extended Display Identification Data) dataset built from 
 ```
 edid-dataset/
 ├── upstream/EDID/          # Git submodule of linuxhw/EDID
-├── python/
-│   ├── build/              # Build tools (ingest, generate)
+├── src/
+│   ├── edid_build/         # Build tools (ingest, generate, cli)
 │   └── edid_dataset/       # Python client library
 ├── data/
-│   ├── edid.duckdb         # Intermediate database (separate artifact)
-│   ├── buckets/            # Compact binary bucket files
-│   └── metadata/           # Index files (FST, JSON)
+│   ├── edid.ducklake       # DuckLake catalog (time-travel, versioned)
+│   ├── edids/              # Parquet files (edid_{date}-{commit}_{batch}.parquet)
+│   └── main/edids/         # DuckLake delete markers
 ├── js/                     # JavaScript client (future)
-├── demo/                   # Web demo (future)
+├── demo/                   # Web demo
 └── docs/                   # Documentation
 ```
 
 ## Build Pipeline
 
-1. **Ingest**: Parse EDID repo → DuckDB database
+1. **Ingest**: Parse EDID repo → DuckLake database
    ```bash
-   cd python && uv run python -m build.cli ingest -i ../upstream/EDID -o ../data/edid.duckdb
+   uv run edid-build ingest -i upstream/EDID -o data/edid.ducklake
    ```
 
-2. **Generate**: DuckDB → Compact binary outputs
+2. **Generate**: DuckLake → Compact binary outputs (buckets)
    ```bash
-   cd python && uv run python -m build.cli generate -d ../data/edid.duckdb -o ../data
+   uv run edid-build generate -d data/edid.ducklake -o data
+   ```
+
+3. **Stats**: Show database statistics
+   ```bash
+   uv run edid-build stats --db data/edid.ducklake
    ```
 
 ## Key Design Decisions
 
-- **DuckDB intermediate**: SQL-queryable, analytics-ready, distributable as separate artifact
-- **Bucketed storage**: 256 bucket files by MD5 prefix, ~110KB each for partial loading
-- **FST indexes**: Finite State Transducers for compact prefix-searchable string indexes
-- **Roaring bitmaps**: Compressed integer sets for efficient key retrieval
+- **DuckLake**: Versioned data lake with time-travel support, parquet storage
+- **Incremental updates**: Diff detection (added/modified/deleted) for efficient updates
+- **Custom file naming**: `edid_{YYYYMMDD}-{commit}_{batch}.parquet` for chronological sorting
+- **PyArrow + ducklake_add_data_files**: External parquet writing with DuckLake registration
+- **Bucketed storage**: 256 bucket files by MD5 prefix for partial loading
 
 ## Git Workflow
 
@@ -44,12 +50,11 @@ edid-dataset/
 - Use git submodule for upstream EDID repo (pinnable, updatable)
 - Clone with: `git clone --recursive`
 - Update EDID data: `git submodule update --remote upstream/EDID`
-- Don't include co-authored-by in commits
 
 ## Dependencies
 
 - Python 3.11+
-- DuckDB, pyroaring, click, tqdm
+- DuckDB, DuckLake extension, PyArrow, pyroaring, click, tqdm
 - Use `uv` for Python package management
 
 ## License
