@@ -13,6 +13,7 @@ class EdidEntry:
 
     linuxhw_id: str  # 12-char hex identifier from linuxhw/EDID repo
     raw_edid: bytes
+    vendor_name: str = ""  # Vendor directory name (e.g., "Samsung", "Dell")
 
 
 class EdidDataset:
@@ -96,14 +97,19 @@ class EdidDataset:
             return None
 
         version, entry_count, values_offset = struct.unpack_from("<HHI", bucket, 4)
+        vendor_table_offset = struct.unpack_from("<I", bucket, 12)[0]
 
         if entry_count == 0:
             return None
 
-        # v3 format: 5 bytes per key (6-byte ID minus prefix byte)
+        # v4 format: 5 bytes per key, 1 byte vendor index, 4 bytes offset
         keys_offset = 16
         key_size = 5
-        offsets_offset = keys_offset + entry_count * key_size
+        vendor_indexes_offset = keys_offset + entry_count * key_size
+        offsets_offset = vendor_indexes_offset + entry_count
+
+        # Parse vendor string table
+        vendor_table = self._parse_vendor_table(bucket, vendor_table_offset)
 
         # Binary search
         low, high = 0, entry_count - 1
@@ -117,10 +123,25 @@ class EdidDataset:
             elif key > remaining:
                 high = mid - 1
             else:
-                # Found it
-                return self._read_entry(bucket, mid, linuxhw_id, offsets_offset, values_offset)
+                # Found it - get vendor name
+                vendor_idx = bucket[vendor_indexes_offset + mid]
+                vendor_name = vendor_table[vendor_idx] if vendor_idx < len(vendor_table) else ""
+                return self._read_entry(bucket, mid, linuxhw_id, offsets_offset, values_offset, vendor_name)
 
         return None
+
+    def _parse_vendor_table(self, bucket: mmap.mmap, offset: int) -> list[str]:
+        """Parse the vendor string table from a bucket."""
+        vendor_count = bucket[offset]
+        vendors = []
+        pos = offset + 1
+        for _ in range(vendor_count):
+            length = bucket[pos]
+            pos += 1
+            vendor = bytes(bucket[pos : pos + length]).decode("utf-8")
+            vendors.append(vendor)
+            pos += length
+        return vendors
 
     def _read_entry(
         self,
@@ -129,6 +150,7 @@ class EdidDataset:
         linuxhw_id: str,
         offsets_offset: int,
         values_offset: int,
+        vendor_name: str = "",
     ) -> EdidEntry:
         """Read entry data from bucket."""
         # Read offset
@@ -150,10 +172,16 @@ class EdidDataset:
         return EdidEntry(
             linuxhw_id=linuxhw_id.upper(),
             raw_edid=raw_edid,
+            vendor_name=vendor_name,
         )
 
     def get_vendor_mapping(self) -> dict[str, str]:
-        """Get vendor code to human-readable name mapping."""
+        """Get vendor code to human-readable name mapping.
+
+        Note: As of v4 bucket format, vendor names are stored per-entry in the
+        bucket files, so this mapping is no longer needed for most use cases.
+        This method is kept for backward compatibility.
+        """
         path = self.data_path / "vendors.json"
         if path.exists():
             return json.loads(path.read_text())

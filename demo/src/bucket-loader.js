@@ -1,16 +1,18 @@
 /**
  * Bucket file loader and parser.
  *
- * Bucket format v3 (6-byte linuxhw ID):
- *   Header (16 bytes): magic(4) + version(2) + count(2) + values_offset(4) + reserved(4)
+ * Bucket format v4 (6-byte linuxhw ID + vendor name):
+ *   Header (16 bytes): magic(4) + version(2) + count(2) + values_offset(4) + vendor_table_offset(4)
  *   Keys (5 bytes each): bytes 1-5 of 6-byte ID (byte 0 is bucket prefix)
+ *   Vendor indexes (1 byte each): index into per-bucket vendor string table
  *   Offsets (4 bytes each): packed offset + length
  *   Values: raw EDID bytes, 4-byte aligned
+ *   Vendor table: count(1) + [length(1) + string bytes]...
  *
- * The 6-byte ID matches linuxhw/EDID filename format: MD5(hex)[:12].upper()
+ * The 6-byte ID matches linuxhw/EDID filename format (opaque identifier).
  */
 
-import { computeGitHubUrl } from './edid-utils.js';
+import { decodeVendorCode, decodeProductCode, getDisplayType } from './edid-utils.js';
 
 const BUCKET_MAGIC = 0x42494445; // "EDIB" little-endian
 
@@ -21,7 +23,6 @@ export class BucketLoader {
     this.loading = new Map(); // prefix -> Promise
     this.manifest = null;
     this.bucketOffsets = null; // cumulative offsets for global index lookup
-    this.vendorMapping = null; // vendor code -> name mapping
   }
 
   /**
@@ -45,41 +46,31 @@ export class BucketLoader {
       this.bucketOffsets[i + 1] = this.bucketOffsets[i] + counts[i];
     }
 
-    // Load vendor mapping if available (for GitHub URL computation)
-    if (this.manifest.vendor_mapping) {
-      this._loadVendorMapping(); // Don't await - load in background
-    }
-
     return this.manifest;
   }
 
   /**
-   * Load vendor code to name mapping (for GitHub URL computation).
-   */
-  async _loadVendorMapping() {
-    if (this.vendorMapping) return this.vendorMapping;
-
-    try {
-      const response = await fetch(`${this.baseUrl}vendors.json`);
-      if (response.ok) {
-        this.vendorMapping = await response.json();
-      }
-    } catch (err) {
-      console.warn('Failed to load vendor mapping:', err);
-      this.vendorMapping = {};
-    }
-
-    return this.vendorMapping;
-  }
-
-  /**
    * Get GitHub URL for an EDID entry.
-   * @param {Uint8Array} edidBytes - Raw EDID bytes
-   * @param {string} id - 12-char linuxhw ID
+   * Uses vendor name from bucket data (v4 format) for correct URL construction.
+   * @param {Object} entry - Entry object with rawEdid, idHex, and vendorName
    * @returns {string|null} GitHub URL or null if not available
    */
-  getGitHubUrl(edidBytes, id) {
-    return computeGitHubUrl(edidBytes, id, this.vendorMapping || {});
+  getGitHubUrl(entry) {
+    if (!entry || !entry.rawEdid || !entry.idHex) return null;
+
+    const type = getDisplayType(entry.rawEdid);
+    const vendorCode = decodeVendorCode(entry.rawEdid);
+    const productCode = decodeProductCode(entry.rawEdid);
+
+    if (!type || !vendorCode || !productCode) return null;
+
+    // Model directory is vendor code + product code (e.g., "SAM0F99")
+    const model = `${vendorCode}${productCode}`;
+
+    // Use vendor name from bucket data (correct for this specific entry)
+    const vendorName = entry.vendorName || vendorCode;
+
+    return `https://github.com/linuxhw/EDID/blob/master/${type}/${vendorName}/${model}/${entry.idHex}`;
   }
 
   /**
@@ -179,19 +170,27 @@ export class ParsedBucket {
     this.headerSize = 16;
     this.keysOffset = this.headerSize;
 
-    if (this.version >= 3) {
-      // v3+: 5 bytes per key (6-byte ID minus prefix)
+    if (this.version >= 4) {
+      // v4: 5 bytes per key + 1 byte vendor index + vendor string table
       this.keySize = 5;
       this.keysSize = this.entryCount * 5;
-      this.metadataOffset = null;
-      this.metadataSize = 0;
+      this.vendorIndexesOffset = this.keysOffset + this.keysSize;
+      this.offsetsOffset = this.vendorIndexesOffset + this.entryCount;
+      this.vendorTableOffset = this.view.getUint32(12, true);
+      this._parseVendorTable();
+    } else if (this.version >= 3) {
+      // v3: 5 bytes per key (6-byte ID minus prefix)
+      this.keySize = 5;
+      this.keysSize = this.entryCount * 5;
+      this.vendorIndexesOffset = null;
+      this.vendorTable = null;
       this.offsetsOffset = this.keysOffset + this.keysSize;
     } else if (this.version === 2) {
       // v2: 15 bytes per key (16-byte MD5 minus prefix)
       this.keySize = 15;
       this.keysSize = this.entryCount * 15;
-      this.metadataOffset = null;
-      this.metadataSize = 0;
+      this.vendorIndexesOffset = null;
+      this.vendorTable = null;
       this.offsetsOffset = this.keysOffset + this.keysSize;
     } else {
       // v1: 15 bytes per key + metadata section
@@ -199,13 +198,29 @@ export class ParsedBucket {
       this.keysSize = this.entryCount * 15;
       this.metadataOffset = this.keysOffset + this.keysSize;
       this.metadataSize = this.entryCount * 16;
+      this.vendorIndexesOffset = null;
+      this.vendorTable = null;
       this.offsetsOffset = this.metadataOffset + this.metadataSize;
+    }
+  }
+
+  _parseVendorTable() {
+    const vendorCount = this.buffer[this.vendorTableOffset];
+    this.vendorTable = [];
+    let pos = this.vendorTableOffset + 1;
+
+    for (let i = 0; i < vendorCount; i++) {
+      const length = this.buffer[pos];
+      pos++;
+      const vendorBytes = this.buffer.slice(pos, pos + length);
+      this.vendorTable.push(new TextDecoder().decode(vendorBytes));
+      pos += length;
     }
   }
 
   /**
    * Get entry at local index.
-   * Returns ID (6 or 16 bytes depending on version) and raw EDID bytes.
+   * Returns ID (6 or 16 bytes depending on version), raw EDID bytes, and vendor name (v4+).
    */
   getEntry(index) {
     if (index < 0 || index >= this.entryCount) {
@@ -226,20 +241,39 @@ export class ParsedBucket {
     const edidStart = this.valuesOffset + valueOffset;
     const rawEdid = this.buffer.slice(edidStart, edidStart + valueLength);
 
-    if (this.version >= 3) {
-      // v3+: 6-byte ID (linuxhw format)
+    if (this.version >= 4) {
+      // v4: 6-byte ID + vendor name from table
       const id = new Uint8Array(6);
       id[0] = this.prefix;
       id.set(keyBytes, 1);
 
-      // 12-char uppercase hex ID (matches linuxhw filename)
+      const idHex = Array.from(id).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+
+      // Get vendor name from table
+      const vendorIdx = this.buffer[this.vendorIndexesOffset + index];
+      const vendorName = this.vendorTable[vendorIdx] || '';
+
+      return {
+        id,
+        idHex,
+        md5Hex: idHex,  // Alias for backward compatibility
+        rawEdid,
+        vendorName,
+      };
+    } else if (this.version >= 3) {
+      // v3: 6-byte ID (linuxhw format), no vendor name
+      const id = new Uint8Array(6);
+      id[0] = this.prefix;
+      id.set(keyBytes, 1);
+
       const idHex = Array.from(id).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 
       return {
         id,
-        idHex,      // 12-char linuxhw ID (e.g., "A03BAE7BABED")
-        md5Hex: idHex,  // Alias for backward compatibility
+        idHex,
+        md5Hex: idHex,
         rawEdid,
+        vendorName: '',  // Not available in v3
       };
     } else {
       // v1/v2: 16-byte MD5 hash
@@ -251,6 +285,7 @@ export class ParsedBucket {
         md5,
         md5Hex: Array.from(md5).map(b => b.toString(16).padStart(2, '0')).join(''),
         rawEdid,
+        vendorName: '',
       };
     }
   }

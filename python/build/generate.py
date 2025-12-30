@@ -43,7 +43,7 @@ def get_upstream_info(upstream_path: Path) -> dict:
 
 # Bucket file format constants
 BUCKET_MAGIC = b"EDIB"
-BUCKET_VERSION = 3  # v3: 6-byte linuxhw ID instead of 16-byte MD5
+BUCKET_VERSION = 4  # v4: per-entry vendor name for correct GitHub URLs
 
 # Packed index file format constants
 INDEX_MAGIC = b"EIDX"
@@ -142,9 +142,6 @@ def generate_compact_files(
         conn, metadata_dir / "paths.idx", id_to_index
     )
 
-    # Generate vendors.json for GitHub path computation
-    vendors_stats = generate_vendors_json(conn, output_path / "vendors.json")
-
     # Get upstream info if path provided
     upstream_info = None
     if upstream_path:
@@ -152,8 +149,8 @@ def generate_compact_files(
 
     # Write manifest
     manifest = {
-        "version": 8,  # v8: bucket format v3 with 6-byte IDs + vendors.json
-        "bucket_format": 3,  # Explicit bucket format version
+        "version": 9,  # v9: bucket format v4 with per-entry vendor names
+        "bucket_format": 4,  # v4: includes vendor string table per bucket
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
         "bucket_counts": stats["bucket_counts"],
@@ -165,7 +162,6 @@ def generate_compact_files(
             "sizes": size_stats,
             "paths": path_stats,
         },
-        "vendor_mapping": vendors_stats,
     }
     if upstream_info:
         manifest["upstream"] = upstream_info
@@ -177,36 +173,69 @@ def generate_compact_files(
 
 
 def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
-    """Write a single bucket file (v3 format: 6-byte linuxhw ID + raw EDID).
+    """Write a single bucket file (v4 format: 6-byte ID + vendor name + raw EDID).
 
-    v3 format uses 6-byte linuxhw IDs (opaque identifiers from linuxhw/EDID filenames).
+    v4 format adds per-entry vendor directory names for correct GitHub URL construction.
+    Uses a per-bucket string table with 1-byte indexes to save space.
+
+    Format:
+        Header (16 bytes):
+            magic: 4 bytes "EDIB"
+            version: 2 bytes (4)
+            entry_count: 2 bytes
+            values_offset: 4 bytes
+            vendor_table_offset: 4 bytes
+
+        Keys section: 5 bytes × entry_count
+        Vendor indexes: 1 byte × entry_count (index into vendor table)
+        Offsets section: 4 bytes × entry_count
+
+        Values section: raw EDID bytes (4-byte aligned)
+        Vendor table: count (1 byte) + [length (1 byte) + string bytes]...
     """
     # Sort entries by remaining 5 bytes of ID (first byte is bucket prefix)
     entries.sort(key=lambda e: e[0][1:6])
 
     entry_count = len(entries)
 
-    # Calculate offsets (v3: 5 bytes per key instead of 15)
+    # Build vendor string table for this bucket
+    vendor_to_index: dict[str, int] = {}
+    vendor_list: list[str] = []
+    for entry in entries:
+        path_vendor = entry[2] or ""  # path_vendor is at index 2
+        if path_vendor not in vendor_to_index:
+            vendor_to_index[path_vendor] = len(vendor_list)
+            vendor_list.append(path_vendor)
+
+    # Calculate section sizes
     header_size = 16
-    keys_size = entry_count * 5  # 5 bytes per key (excluding prefix byte)
+    keys_size = entry_count * 5  # 5 bytes per key
+    vendor_indexes_size = entry_count * 1  # 1 byte per vendor index
     offsets_size = entry_count * 4  # 4 bytes per offset
 
-    values_offset = header_size + keys_size + offsets_size
+    values_offset = header_size + keys_size + vendor_indexes_size + offsets_size
 
     # Build the file content
     data = bytearray()
 
-    # Header (16 bytes)
+    # Placeholder for header (will fill in vendor_table_offset later)
+    header_start = len(data)
     data.extend(BUCKET_MAGIC)
     data.extend(struct.pack("<H", BUCKET_VERSION))
     data.extend(struct.pack("<H", entry_count))
     data.extend(struct.pack("<I", values_offset))
-    data.extend(b"\x00" * 4)  # Reserved
+    data.extend(struct.pack("<I", 0))  # vendor_table_offset placeholder
 
-    # Keys (5 bytes each, bytes 1-5 of 6-byte linuxhw ID, byte 0 is bucket prefix)
+    # Keys (5 bytes each, bytes 1-5 of 6-byte linuxhw ID)
     for entry in entries:
         linuxhw_id = entry[0]
-        data.extend(linuxhw_id[1:6])  # Bytes 1-5 of ID (prefix byte is implicit)
+        data.extend(linuxhw_id[1:6])
+
+    # Vendor indexes (1 byte each)
+    for entry in entries:
+        path_vendor = entry[2] or ""
+        vendor_idx = vendor_to_index[path_vendor]
+        data.append(vendor_idx)
 
     # Build values section and offsets
     values_section = bytearray()
@@ -231,8 +260,19 @@ def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
     for offset_bytes in offsets:
         data.extend(offset_bytes)
 
-    # Write values
+    # Write values section
     data.extend(values_section)
+
+    # Record vendor table offset and write vendor string table
+    vendor_table_offset = len(data)
+    data.append(len(vendor_list))  # Vendor count (1 byte)
+    for vendor in vendor_list:
+        vendor_bytes = vendor.encode("utf-8")
+        data.append(len(vendor_bytes))  # Length (1 byte)
+        data.extend(vendor_bytes)
+
+    # Update header with vendor_table_offset
+    struct.pack_into("<I", data, 12, vendor_table_offset)
 
     path.write_bytes(bytes(data))
 

@@ -17,7 +17,6 @@ export class EdidBrowser extends LitElement {
     _layoutMode: { type: String, state: true },
     _showDetail: { type: Boolean, state: true },
     _upstream: { type: Object, state: true },
-    _vendorMapping: { type: Object, state: true },
   };
 
   static styles = css`
@@ -202,7 +201,6 @@ export class EdidBrowser extends LitElement {
     this._showDetail = false;
     this._resizeObserver = null;
     this._upstream = null;
-    this._vendorMapping = {};
   }
 
   connectedCallback() {
@@ -245,24 +243,9 @@ export class EdidBrowser extends LitElement {
         if (manifest?.upstream) {
           this._upstream = manifest.upstream;
         }
-        // Load vendor mapping for GitHub URL computation
-        if (manifest?.vendor_mapping) {
-          this._loadVendorMapping();
-        }
       }
     } catch (err) {
       console.warn('Failed to load manifest:', err);
-    }
-  }
-
-  async _loadVendorMapping() {
-    try {
-      const response = await fetch(`${this.baseUrl}vendors.json`);
-      if (response.ok) {
-        this._vendorMapping = await response.json();
-      }
-    } catch (err) {
-      console.warn('Failed to load vendor mapping:', err);
     }
   }
 
@@ -326,7 +309,6 @@ export class EdidBrowser extends LitElement {
         <div class="detail-section">
           <edid-detail
             .edid=${this._selectedEdid}
-            .vendorMapping=${this._vendorMapping}
             ?mobile=${this._layoutMode === 'mobile'}
             @back=${this._onDetailBack}
           ></edid-detail>

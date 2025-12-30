@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { computeGitHubUrl } from './edid-utils.js';
+import { decodeVendorCode, decodeProductCode, getDisplayType } from './edid-utils.js';
 import './edid-viewer.js';
 
 /**
@@ -7,15 +7,13 @@ import './edid-viewer.js';
  * Accepts the browser's edid object format and passes data to edid-viewer.
  *
  * @element edid-detail
- * @prop {Object} edid - EDID entry from bucket loader ({ idHex, rawEdid, _globalIndex })
- * @prop {Object} vendorMapping - Vendor code to name mapping for GitHub URLs
+ * @prop {Object} edid - EDID entry from bucket loader ({ idHex, rawEdid, vendorName, _globalIndex })
  * @prop {Boolean} mobile - Shows back button in mobile view
  * @fires back - Dispatched when back button is clicked
  */
 export class EdidDetail extends LitElement {
   static properties = {
     edid: { type: Object },
-    vendorMapping: { type: Object, attribute: false },
     mobile: { type: Boolean, reflect: true },
   };
 
@@ -45,7 +43,6 @@ export class EdidDetail extends LitElement {
   constructor() {
     super();
     this.edid = null;
-    this.vendorMapping = {};
     this.mobile = false;
   }
 
@@ -56,7 +53,20 @@ export class EdidDetail extends LitElement {
 
   _getGitHubUrl(linuxhwId) {
     if (!this.edid?.rawEdid || !linuxhwId) return null;
-    return computeGitHubUrl(this.edid.rawEdid, linuxhwId, this.vendorMapping || {});
+
+    const type = getDisplayType(this.edid.rawEdid);
+    const vendorCode = decodeVendorCode(this.edid.rawEdid);
+    const productCode = decodeProductCode(this.edid.rawEdid);
+
+    if (!type || !vendorCode || !productCode) return null;
+
+    // Model directory is vendor code + product code (e.g., "SAM0F99")
+    const model = `${vendorCode}${productCode}`;
+
+    // Use vendor name from bucket data (correct for this specific entry)
+    const vendorName = this.edid.vendorName || vendorCode;
+
+    return `https://github.com/linuxhw/EDID/blob/master/${type}/${vendorName}/${model}/${linuxhwId}`;
   }
 
   render() {

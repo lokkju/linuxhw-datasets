@@ -48,29 +48,6 @@ export function getDisplayType(edidBytes) {
 }
 
 /**
- * Compute the full GitHub URL for an EDID entry.
- * @param {Uint8Array} edidBytes - Full EDID bytes
- * @param {string} id - 12-character linuxhw ID
- * @param {Object} vendorMapping - Mapping from vendor code to human-readable name
- * @returns {string} Full GitHub URL to the EDID file
- */
-export function computeGitHubUrl(edidBytes, id, vendorMapping = {}) {
-  const type = getDisplayType(edidBytes);
-  const vendorCode = decodeVendorCode(edidBytes);
-  const productCode = decodeProductCode(edidBytes);
-
-  if (!type || !vendorCode || !productCode) return null;
-
-  // Model directory is vendor code + product code (e.g., "SAM0F99")
-  const model = `${vendorCode}${productCode}`;
-
-  // Vendor name from mapping, or fall back to code
-  const vendorName = vendorMapping[vendorCode] || vendorCode;
-
-  return `https://github.com/linuxhw/EDID/blob/master/${type}/${vendorName}/${model}/${id}`;
-}
-
-/**
  * Extract all computable path info from EDID bytes.
  * @param {Uint8Array} edidBytes - Full EDID bytes
  * @returns {Object} Path components { type, vendorCode, productCode, model }
