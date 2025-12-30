@@ -47,8 +47,8 @@ def main():
     "--batch-size",
     "-b",
     type=int,
-    default=3000,
-    help="Rows per Parquet file (~3000 ≈ 3MB, default: 3000)",
+    default=50000,
+    help="Rows per Parquet file (default: 50000)",
 )
 def ingest(
     input_path: Path,
