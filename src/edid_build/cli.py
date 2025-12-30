@@ -180,5 +180,153 @@ def stats(db_path: Path):
     conn.close()
 
 
+@main.command()
+@click.option(
+    "--submodule",
+    "-s",
+    "submodule_path",
+    type=click.Path(path_type=Path),
+    default=Path("upstream/EDID"),
+    help="Path to linuxhw/EDID submodule",
+)
+@click.option(
+    "--output",
+    "-o",
+    "output_path",
+    type=click.Path(path_type=Path),
+    default=Path("data/edid.ducklake"),
+    help="Output DuckLake database path",
+)
+@click.option(
+    "--check-only",
+    is_flag=True,
+    help="Only check for updates, don't apply them",
+)
+@click.option(
+    "--force",
+    "-f",
+    is_flag=True,
+    help="Update and ingest even if no changes detected",
+)
+def update(
+    submodule_path: Path,
+    output_path: Path,
+    check_only: bool,
+    force: bool,
+):
+    """Check for upstream updates and re-ingest if needed.
+
+    This command:
+    1. Fetches latest from linuxhw/EDID remote
+    2. Compares current submodule commit to remote HEAD
+    3. If updates available, updates submodule and runs ingest
+    """
+    import subprocess
+
+    from .ingest import ingest_edid_repo
+
+    if not submodule_path.exists():
+        raise click.ClickException(f"Submodule path does not exist: {submodule_path}")
+
+    # Get current commit
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=submodule_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    current_commit = result.stdout.strip()
+    current_short = current_commit[:12]
+
+    click.echo(f"Current commit: {current_short}")
+
+    # Fetch latest from remote
+    click.echo("Fetching from remote...")
+    subprocess.run(
+        ["git", "fetch", "origin"],
+        cwd=submodule_path,
+        capture_output=True,
+        check=True,
+    )
+
+    # Get remote HEAD commit
+    result = subprocess.run(
+        ["git", "rev-parse", "origin/master"],
+        cwd=submodule_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    remote_commit = result.stdout.strip()
+    remote_short = remote_commit[:12]
+
+    click.echo(f"Remote commit:  {remote_short}")
+
+    # Check if update needed
+    if current_commit == remote_commit and not force:
+        click.echo("\n✓ Already up to date")
+        return
+
+    # Show what changed
+    if current_commit != remote_commit:
+        result = subprocess.run(
+            ["git", "log", "--oneline", f"{current_commit}..{remote_commit}"],
+            cwd=submodule_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        commit_count = len(result.stdout.strip().split("\n")) if result.stdout.strip() else 0
+        click.echo(f"\n{commit_count} new commit(s) available:")
+        for line in result.stdout.strip().split("\n")[:10]:
+            click.echo(f"  {line}")
+        if commit_count > 10:
+            click.echo(f"  ... and {commit_count - 10} more")
+
+    if check_only:
+        click.echo("\n--check-only specified, not applying updates")
+        return
+
+    # Update submodule
+    click.echo("\nUpdating submodule...")
+    subprocess.run(
+        ["git", "checkout", remote_commit],
+        cwd=submodule_path,
+        capture_output=True,
+        check=True,
+    )
+
+    # Get commit date for display
+    result = subprocess.run(
+        ["git", "log", "-1", "--format=%ci"],
+        cwd=submodule_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    commit_date = result.stdout.strip().split()[0]
+
+    click.echo(f"Updated to: {remote_short} ({commit_date})")
+
+    # Run ingest
+    click.echo("\nRunning ingest...")
+    stats = ingest_edid_repo(
+        submodule_path,
+        output_path,
+        upstream_path=submodule_path,
+        show_progress=True,
+    )
+
+    click.echo("\nUpdate complete:")
+    click.echo(f"  Previous commit: {current_short}")
+    click.echo(f"  New commit:      {remote_short} ({commit_date})")
+    click.echo(f"  Total EDIDs:     {stats['unique']:,}")
+    if "added" in stats:
+        click.echo(f"  Added:           {stats['added']:,}")
+        click.echo(f"  Modified:        {stats['modified']:,}")
+        click.echo(f"  Deleted:         {stats['deleted']:,}")
+
+
 if __name__ == "__main__":
     main()

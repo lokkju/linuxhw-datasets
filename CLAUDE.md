@@ -19,22 +19,79 @@ edid-dataset/
 └── docs/                   # Documentation
 ```
 
-## Build Pipeline
+## Quick Start
 
-1. **Ingest**: Parse EDID repo → DuckLake database
-   ```bash
-   uv run edid-build ingest -i upstream/EDID -o data/edid.ducklake
-   ```
+```bash
+# Clone with submodule
+git clone --recursive https://github.com/lokkju/edid-dataset
 
-2. **Generate**: DuckLake → Compact binary outputs (buckets)
-   ```bash
-   uv run edid-build generate -d data/edid.ducklake -o data
-   ```
+# Install dependencies
+uv sync
 
-3. **Stats**: Show database statistics
-   ```bash
-   uv run edid-build stats --db data/edid.ducklake
-   ```
+# Check for updates and ingest
+uv run edid-build update
+```
+
+## CLI Commands
+
+All commands use sensible defaults and can be run without arguments:
+
+```bash
+# Check for upstream updates and re-ingest if needed
+uv run edid-build update
+
+# Check for updates without applying
+uv run edid-build update --check-only
+
+# Force re-ingest even if no changes
+uv run edid-build update --force
+
+# Manual ingest (defaults: upstream/EDID → data/edid.ducklake)
+uv run edid-build ingest
+
+# Generate compact binary bucket files
+uv run edid-build generate
+
+# Show database statistics
+uv run edid-build stats
+```
+
+## Update Workflow
+
+The `update` command automates the full update process:
+
+1. **Fetch**: Gets latest commits from linuxhw/EDID remote
+2. **Compare**: Checks if submodule is behind remote HEAD
+3. **Update**: If changes found, updates submodule to latest
+4. **Ingest**: Runs incremental ingest (only processes added/modified/deleted)
+
+```bash
+# Typical output when updates are available:
+$ uv run edid-build update
+Current commit: cc83e52221a9
+Fetching from remote...
+Remote commit:  ab12def34567
+
+3 new commit(s) available:
+  ab12def Add new Samsung monitors
+  cd34567 Fix Dell EDID data
+  ef78901 Add LG displays
+
+Updating submodule...
+Updated to: ab12def34567 (2025-02-15)
+
+Running ingest...
+Incremental update - computing diff...
+  Added: 156, Modified: 3, Deleted: 0
+
+Update complete:
+  Previous commit: cc83e52221a9
+  New commit:      ab12def34567 (2025-02-15)
+  Total EDIDs:     141,896
+  Added:           156
+  Modified:        3
+  Deleted:         0
+```
 
 ## Key Design Decisions
 
@@ -49,7 +106,7 @@ edid-dataset/
 - Commit frequently after completing logical units of work
 - Use git submodule for upstream EDID repo (pinnable, updatable)
 - Clone with: `git clone --recursive`
-- Update EDID data: `git submodule update --remote upstream/EDID`
+- Manual submodule update: `git submodule update --remote upstream/EDID`
 
 ## Dependencies
 
