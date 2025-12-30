@@ -3,12 +3,15 @@
 Optimized for speed using:
 - os.scandir() for fast file discovery
 - multiprocessing for parallel parsing
-- PyArrow for bulk inserts
+- PyArrow for writing Parquet files with custom names
 - DuckLake for versioned, remote-accessible storage
+- Incremental updates with diff detection
 """
 
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
@@ -16,9 +19,33 @@ from pathlib import Path
 
 import duckdb
 import pyarrow as pa
+import pyarrow.parquet as pq
 from tqdm import tqdm
 
 from .parser import parse_edid_file, validate_edid_checksum
+
+# Schema for EDID parquet files
+EDID_SCHEMA = pa.schema([
+    ("linuxhw_id", pa.binary()),
+    ("linuxhw_id_hex", pa.string()),
+    ("raw_edid", pa.binary()),
+    ("vendor", pa.string()),
+    ("model", pa.string()),
+    ("product_name", pa.string()),
+    ("serial_number", pa.string()),
+    ("manufacture_year", pa.int32()),
+    ("manufacture_week", pa.int32()),
+    ("path_vendor", pa.string()),
+    ("path_model", pa.string()),
+    ("width_px", pa.int32()),
+    ("height_px", pa.int32()),
+    ("width_mm", pa.int32()),
+    ("height_mm", pa.int32()),
+    ("display_type", pa.string()),
+    ("screen_size_inches", pa.float32()),
+    ("source_path", pa.string()),
+    ("checksum_valid", pa.bool_()),
+])
 
 
 def find_edid_files_fast(repo_path: Path) -> list[str]:
@@ -139,6 +166,153 @@ def update_versions_json(
         json.dump(versions, f, indent=2)
 
 
+def _result_to_dict(result: tuple, repo_str: str) -> dict:
+    """Convert parsed result tuple to dict with relative path."""
+    source_path = result[17]
+    if source_path.startswith(repo_str):
+        source_path = source_path[len(repo_str) + 1:]
+
+    return {
+        "linuxhw_id": result[0],
+        "linuxhw_id_hex": result[1],
+        "raw_edid": result[2],
+        "vendor": result[3],
+        "model": result[4],
+        "product_name": result[5],
+        "serial_number": result[6],
+        "manufacture_year": result[7],
+        "manufacture_week": result[8],
+        "path_vendor": result[9],
+        "path_model": result[10],
+        "width_px": result[11],
+        "height_px": result[12],
+        "width_mm": result[13],
+        "height_mm": result[14],
+        "display_type": result[15],
+        "screen_size_inches": result[16],
+        "source_path": source_path,
+        "checksum_valid": result[18],
+    }
+
+
+def _write_parquet_files(
+    records: list[dict],
+    output_dir: Path,
+    commit: str,
+    batch_size: int,
+    is_incremental: bool = False,
+    show_progress: bool = True,
+) -> list[Path]:
+    """Write records to parquet files with custom naming.
+
+    Full ingest: edid_{commit}_{batch:03d}.parquet
+    Incremental: edid_{commit}_incr_{timestamp}_{batch:03d}.parquet
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written_files = []
+
+    # Generate timestamp for incremental files
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S") if is_incremental else None
+
+    for batch_num, i in enumerate(range(0, len(records), batch_size)):
+        batch = records[i:i + batch_size]
+
+        # Build filename
+        if is_incremental:
+            filename = f"edid_{commit}_incr_{timestamp}_{batch_num:03d}.parquet"
+        else:
+            filename = f"edid_{commit}_{batch_num:03d}.parquet"
+
+        filepath = output_dir / filename
+
+        # Build PyArrow table
+        table = pa.table({
+            "linuxhw_id": [r["linuxhw_id"] for r in batch],
+            "linuxhw_id_hex": [r["linuxhw_id_hex"] for r in batch],
+            "raw_edid": [r["raw_edid"] for r in batch],
+            "vendor": [r["vendor"] for r in batch],
+            "model": [r["model"] for r in batch],
+            "product_name": [r["product_name"] for r in batch],
+            "serial_number": [r["serial_number"] for r in batch],
+            "manufacture_year": [r["manufacture_year"] for r in batch],
+            "manufacture_week": [r["manufacture_week"] for r in batch],
+            "path_vendor": [r["path_vendor"] for r in batch],
+            "path_model": [r["path_model"] for r in batch],
+            "width_px": [r["width_px"] for r in batch],
+            "height_px": [r["height_px"] for r in batch],
+            "width_mm": [r["width_mm"] for r in batch],
+            "height_mm": [r["height_mm"] for r in batch],
+            "display_type": [r["display_type"] for r in batch],
+            "screen_size_inches": [r["screen_size_inches"] for r in batch],
+            "source_path": [r["source_path"] for r in batch],
+            "checksum_valid": [r["checksum_valid"] for r in batch],
+        }, schema=EDID_SCHEMA)
+
+        # Write with zstd compression
+        pq.write_table(table, filepath, compression="zstd")
+        written_files.append(filepath)
+
+        if show_progress:
+            total = min(i + batch_size, len(records))
+            print(f"  Wrote batch {batch_num + 1}: {total}/{len(records)}")
+
+    return written_files
+
+
+def _compute_diff(
+    conn: duckdb.DuckDBPyConnection,
+    new_records: list[dict],
+    show_progress: bool = True,
+) -> dict:
+    """Compute diff between existing DuckLake data and new parsed results.
+
+    Returns dict with: added (list), modified (list), deleted_ids (list)
+    Uses MD5 hash of raw_edid for change detection.
+    """
+    if show_progress:
+        print("Computing diff with existing data...")
+
+    # Build lookup of new records by linuxhw_id
+    new_by_id = {r["linuxhw_id"]: r for r in new_records}
+    new_ids = set(new_by_id.keys())
+
+    # Get existing records with their content hashes
+    existing = conn.execute("""
+        SELECT linuxhw_id, md5(raw_edid) as content_hash
+        FROM edid.edids
+    """).fetchall()
+
+    existing_by_id = {}
+    for row in existing:
+        linuxhw_id = bytes(row[0]) if isinstance(row[0], memoryview) else row[0]
+        existing_by_id[linuxhw_id] = row[1]
+    existing_ids = set(existing_by_id.keys())
+
+    # Find added, modified, deleted
+    added_ids = new_ids - existing_ids
+    deleted_ids = existing_ids - new_ids
+    common_ids = new_ids & existing_ids
+
+    # Check for modifications in common records
+    modified_ids = set()
+    for linuxhw_id in common_ids:
+        new_hash = hashlib.md5(new_by_id[linuxhw_id]["raw_edid"]).hexdigest()
+        if new_hash != existing_by_id[linuxhw_id]:
+            modified_ids.add(linuxhw_id)
+
+    added = [new_by_id[id] for id in added_ids]
+    modified = [new_by_id[id] for id in modified_ids]
+
+    if show_progress:
+        print(f"  Added: {len(added)}, Modified: {len(modified)}, Deleted: {len(deleted_ids)}")
+
+    return {
+        "added": added,
+        "modified": modified,
+        "deleted_ids": list(deleted_ids),
+    }
+
+
 def ingest_edid_repo(
     repo_path: Path,
     ducklake_path: Path,
@@ -166,9 +340,11 @@ def ingest_edid_repo(
     # Ensure output directory exists
     ducklake_path.parent.mkdir(parents=True, exist_ok=True)
     data_path = ducklake_path.parent
+    edids_dir = data_path / "edids"
 
     # Get upstream version info
     upstream_info = get_upstream_info(upstream_path)
+    commit = upstream_info["commit"]
 
     # Find all EDID files
     if show_progress:
@@ -181,7 +357,7 @@ def ingest_edid_repo(
         "failed": 0,
         "invalid_checksum": 0,
         "duplicates": 0,
-        "upstream_commit": upstream_info["commit"],
+        "upstream_commit": commit,
         "upstream_date": upstream_info["date"],
     }
 
@@ -222,102 +398,138 @@ def ingest_edid_repo(
     if show_progress:
         print(f"Deduplicated to {len(unique_results)} unique entries")
 
-    # Convert file paths to relative paths
-    def make_relative(path: str) -> str:
-        if path.startswith(repo_str):
-            return path[len(repo_str) + 1:]
-        return path
+    # Convert to dicts with relative paths
+    records = [_result_to_dict(r, repo_str) for r in unique_results]
 
     # Connect to DuckDB and load DuckLake extension
     conn = duckdb.connect()
     conn.execute("INSTALL ducklake")
     conn.execute("LOAD ducklake")
 
-    # Remove existing DuckLake files if present
-    if ducklake_path.exists():
-        ducklake_path.unlink()
-    wal_path = ducklake_path.with_suffix(".ducklake.wal")
-    if wal_path.exists():
-        wal_path.unlink()
+    # Check if this is a fresh ingest or incremental update
+    is_fresh = not ducklake_path.exists()
 
-    # Remove existing data directories
-    for table_dir in ["main"]:
-        table_path = data_path / table_dir
-        if table_path.exists():
-            import shutil
-            shutil.rmtree(table_path)
-
-    # Create DuckLake with local DATA_PATH
-    conn.execute(f"""
-        ATTACH '{ducklake_path}' AS edid (
-            TYPE ducklake,
-            DATA_PATH '{data_path}'
-        )
-    """)
-
-    # Create tables (single denormalized table for simplicity)
-    conn.execute("""
-        CREATE TABLE edid.edids (
-            linuxhw_id BLOB,
-            linuxhw_id_hex VARCHAR,
-            raw_edid BLOB,
-            vendor VARCHAR,
-            model VARCHAR,
-            product_name VARCHAR,
-            serial_number VARCHAR,
-            manufacture_year INTEGER,
-            manufacture_week INTEGER,
-            path_vendor VARCHAR,
-            path_model VARCHAR,
-            width_px INTEGER,
-            height_px INTEGER,
-            width_mm INTEGER,
-            height_mm INTEGER,
-            display_type VARCHAR,
-            screen_size_inches REAL,
-            source_path VARCHAR,
-            checksum_valid BOOLEAN
-        )
-    """)
-
-    # Insert in batches to control Parquet file size
-    # Use single transaction so all batches = one time-travel snapshot
-    conn.execute("BEGIN TRANSACTION")
-    total_inserted = 0
-    for i in range(0, len(unique_results), batch_size):
-        batch = unique_results[i:i + batch_size]
-
-        # Build PyArrow table for this batch
-        arrow_table = pa.table({
-            "linuxhw_id": [r[0] for r in batch],
-            "linuxhw_id_hex": [r[1] for r in batch],
-            "raw_edid": [r[2] for r in batch],
-            "vendor": [r[3] for r in batch],
-            "model": [r[4] for r in batch],
-            "product_name": [r[5] for r in batch],
-            "serial_number": [r[6] for r in batch],
-            "manufacture_year": [r[7] for r in batch],
-            "manufacture_week": [r[8] for r in batch],
-            "path_vendor": [r[9] for r in batch],
-            "path_model": [r[10] for r in batch],
-            "width_px": [r[11] for r in batch],
-            "height_px": [r[12] for r in batch],
-            "width_mm": [r[13] for r in batch],
-            "height_mm": [r[14] for r in batch],
-            "display_type": [r[15] for r in batch],
-            "screen_size_inches": [r[16] for r in batch],
-            "source_path": [make_relative(r[17]) for r in batch],
-            "checksum_valid": [r[18] for r in batch],
-        })
-
-        # Insert batch (creates one Parquet file per batch)
-        conn.execute("INSERT INTO edid.edids SELECT * FROM arrow_table")
-        total_inserted += len(batch)
-
+    if is_fresh:
+        # Fresh ingest - clean slate
         if show_progress:
-            print(f"  Inserted batch {i // batch_size + 1}: {total_inserted}/{len(unique_results)}")
+            print("Fresh ingest - creating new DuckLake...")
 
-    conn.execute("COMMIT")
+        # Remove any existing data
+        wal_path = ducklake_path.with_suffix(".ducklake.wal")
+        if wal_path.exists():
+            wal_path.unlink()
+        for table_dir in ["main", "edids"]:
+            table_path = data_path / table_dir
+            if table_path.exists():
+                shutil.rmtree(table_path)
+
+        # Create directories
+        edids_dir.mkdir(parents=True, exist_ok=True)
+        (data_path / "main" / "edids").mkdir(parents=True, exist_ok=True)
+
+        # Write parquet files with custom names
+        if show_progress:
+            print(f"Writing parquet files to {edids_dir}/...")
+        written_files = _write_parquet_files(
+            records, edids_dir, commit, batch_size,
+            is_incremental=False, show_progress=show_progress
+        )
+
+        # Create DuckLake and register files
+        conn.execute(f"""
+            ATTACH '{ducklake_path}' AS edid (
+                TYPE ducklake,
+                DATA_PATH '{data_path}'
+            )
+        """)
+
+        # Create empty table with schema
+        conn.execute("""
+            CREATE TABLE edid.edids (
+                linuxhw_id BLOB,
+                linuxhw_id_hex VARCHAR,
+                raw_edid BLOB,
+                vendor VARCHAR,
+                model VARCHAR,
+                product_name VARCHAR,
+                serial_number VARCHAR,
+                manufacture_year INTEGER,
+                manufacture_week INTEGER,
+                path_vendor VARCHAR,
+                path_model VARCHAR,
+                width_px INTEGER,
+                height_px INTEGER,
+                width_mm INTEGER,
+                height_mm INTEGER,
+                display_type VARCHAR,
+                screen_size_inches REAL,
+                source_path VARCHAR,
+                checksum_valid BOOLEAN
+            )
+        """)
+
+        # Register external parquet files with DuckLake in single transaction
+        if show_progress:
+            print("Registering files with DuckLake...")
+        conn.execute("BEGIN TRANSACTION")
+        for filepath in written_files:
+            conn.execute(f"CALL ducklake_add_data_files('edid', 'edids', '{filepath}')")
+        conn.execute("COMMIT")
+
+    else:
+        # Incremental update
+        if show_progress:
+            print("Incremental update - computing diff...")
+
+        # Attach existing DuckLake
+        conn.execute(f"""
+            ATTACH '{ducklake_path}' AS edid (
+                TYPE ducklake,
+                DATA_PATH '{data_path}'
+            )
+        """)
+
+        # Compute diff
+        diff = _compute_diff(conn, records, show_progress)
+
+        if not diff["added"] and not diff["modified"] and not diff["deleted_ids"]:
+            if show_progress:
+                print("No changes detected - database is up to date")
+            stats["added"] = 0
+            stats["modified"] = 0
+            stats["deleted"] = 0
+        else:
+            # Handle changes in single transaction
+            conn.execute("BEGIN TRANSACTION")
+
+            # Delete modified and deleted records
+            ids_to_delete = diff["deleted_ids"] + [r["linuxhw_id"] for r in diff["modified"]]
+            if ids_to_delete:
+                if show_progress:
+                    print(f"Deleting {len(ids_to_delete)} records...")
+                # Delete in batches
+                for i in range(0, len(ids_to_delete), 1000):
+                    batch = ids_to_delete[i:i + 1000]
+                    placeholders = ", ".join([f"x'{id.hex()}'" for id in batch])
+                    conn.execute(f"DELETE FROM edid.edids WHERE linuxhw_id IN ({placeholders})")
+
+            # Write and register new/modified records
+            records_to_add = diff["added"] + diff["modified"]
+            if records_to_add:
+                if show_progress:
+                    print(f"Adding {len(records_to_add)} records...")
+                written_files = _write_parquet_files(
+                    records_to_add, edids_dir, commit, batch_size,
+                    is_incremental=True, show_progress=show_progress
+                )
+                for filepath in written_files:
+                    conn.execute(f"CALL ducklake_add_data_files('edid', 'edids', '{filepath}')")
+
+            conn.execute("COMMIT")
+
+            stats["added"] = len(diff["added"])
+            stats["modified"] = len(diff["modified"])
+            stats["deleted"] = len(diff["deleted_ids"])
 
     # Get final count
     result = conn.execute("SELECT COUNT(*) FROM edid.edids").fetchone()
