@@ -29,12 +29,13 @@ def main():
     help="Output DuckDB database path",
 )
 @click.option(
-    "--batch-size",
+    "--workers",
+    "-w",
     type=int,
-    default=1000,
-    help="Batch size for database inserts",
+    default=None,
+    help="Number of parallel workers (default: CPU count)",
 )
-def ingest(input_path: Path, output_path: Path, batch_size: int):
+def ingest(input_path: Path, output_path: Path, workers: int | None):
     """Ingest EDID repository into DuckDB database."""
     from .ingest import ingest_edid_repo
 
@@ -44,7 +45,7 @@ def ingest(input_path: Path, output_path: Path, batch_size: int):
     stats = ingest_edid_repo(
         input_path,
         output_path,
-        batch_size=batch_size,
+        workers=workers,
         show_progress=True,
     )
 
