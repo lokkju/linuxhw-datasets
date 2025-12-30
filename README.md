@@ -44,7 +44,8 @@ INSTALL ducklake; LOAD ducklake;
 
 ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/ducklake/edid.ducklake' AS edid (
     TYPE ducklake,
-    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/ducklake'
+    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/ducklake',
+    OVERRIDE_DATA_PATH 1
 );
 
 -- Find Dell monitors by resolution
