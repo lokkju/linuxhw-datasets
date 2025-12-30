@@ -16,6 +16,7 @@ import subprocess
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import duckdb
 import pyarrow as pa
@@ -23,6 +24,29 @@ import pyarrow.parquet as pq
 from tqdm import tqdm
 
 from .parser import parse_edid_file, validate_edid_checksum
+
+
+class DataVersion(NamedTuple):
+    """Data version info combining upstream date and commit."""
+
+    version: str  # e.g., "v2025.01.06-cc83e52221a9"
+    date: str  # e.g., "2025-01-06"
+    commit: str  # e.g., "cc83e52221a9"
+
+
+def compute_data_version(date: str, commit: str) -> DataVersion:
+    """Compute data version string from upstream date and commit.
+
+    Format: v{YYYY}.{MM}.{DD}-{commit12}
+    Example: v2025.01.06-cc83e52221a9
+    """
+    # Ensure commit is 12 chars
+    commit_short = commit[:12]
+    # Convert date format YYYY-MM-DD to YYYY.MM.DD
+    date_dotted = date.replace("-", ".")
+    version = f"v{date_dotted}-{commit_short}"
+    return DataVersion(version=version, date=date, commit=commit_short)
+
 
 # Schema for EDID parquet files
 EDID_SCHEMA = pa.schema([
@@ -142,9 +166,13 @@ def update_versions_json(
     upstream_commit: str,
     upstream_date: str,
     row_count: int,
-) -> None:
-    """Update versions.json with new version entry."""
-    versions = {"current": upstream_commit, "versions": []}
+) -> DataVersion:
+    """Update versions.json with new version entry.
+
+    Returns the computed DataVersion for use by callers.
+    """
+    data_version = compute_data_version(upstream_date, upstream_commit)
+    versions = {"current": data_version.version, "versions": []}
 
     if versions_path.exists():
         with open(versions_path) as f:
@@ -152,18 +180,21 @@ def update_versions_json(
 
     # Add new version entry
     new_version = {
-        "upstream": upstream_commit,
-        "date": upstream_date,
+        "version": data_version.version,
+        "upstream": data_version.commit,
+        "date": data_version.date,
         "ts": datetime.now(timezone.utc).isoformat(),
         "count": row_count,
     }
 
     # Update current and prepend new version
-    versions["current"] = upstream_commit
+    versions["current"] = data_version.version
     versions["versions"].insert(0, new_version)
 
     with open(versions_path, "w") as f:
         json.dump(versions, f, indent=2)
+
+    return data_version
 
 
 def _result_to_dict(result: tuple, repo_str: str) -> dict:

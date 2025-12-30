@@ -11,6 +11,8 @@ import duckdb
 from pyroaring import BitMap
 from tqdm import tqdm
 
+from .ingest import compute_data_version
+
 
 def get_upstream_info(upstream_path: Path) -> dict:
     """Get git revision info from upstream EDID repo."""
@@ -152,8 +154,11 @@ def generate_compact_files(
 
     # Get upstream info if path provided
     upstream_info = None
+    data_version = None
     if upstream_path:
         upstream_info = get_upstream_info(upstream_path)
+        if upstream_info["commit"] != "unknown":
+            data_version = compute_data_version(upstream_info["date"], upstream_info["commit"])
 
     # Write manifest
     manifest = {
@@ -171,6 +176,8 @@ def generate_compact_files(
             "paths": path_stats,
         },
     }
+    if data_version:
+        manifest["data_version"] = data_version.version
     if upstream_info:
         manifest["upstream"] = upstream_info
 

@@ -182,6 +182,38 @@ def stats(db_path: Path):
 
 @main.command()
 @click.option(
+    "--data-dir",
+    "-d",
+    "data_dir",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("data"),
+    help="Data directory containing versions.json",
+)
+def version(data_dir: Path):
+    """Show current data version."""
+    import json
+
+    versions_path = data_dir / "versions.json"
+    if not versions_path.exists():
+        click.echo("No versions.json found. Run 'edid-build ingest' first.")
+        return
+
+    with open(versions_path) as f:
+        versions = json.load(f)
+
+    current = versions.get("current", "unknown")
+    click.echo(f"Data version: {current}")
+
+    if versions.get("versions"):
+        latest = versions["versions"][0]
+        click.echo(f"  Date:     {latest.get('date', 'unknown')}")
+        click.echo(f"  Upstream: {latest.get('upstream', 'unknown')}")
+        click.echo(f"  Count:    {latest.get('count', 0):,} EDIDs")
+        click.echo(f"  Built:    {latest.get('ts', 'unknown')}")
+
+
+@main.command()
+@click.option(
     "--submodule",
     "-s",
     "submodule_path",
