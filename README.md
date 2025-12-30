@@ -1,6 +1,6 @@
-# LinuxHW Dataset
+# LinuxHW Datasets
 
-A comprehensive EDID (Extended Display Identification Data) dataset built from the [linuxhw/EDID](https://github.com/linuxhw/EDID) repository, providing 140,000+ display profiles in two formats.
+A collection of datasets built from [linuxhw](https://github.com/linuxhw) repositories. Currently includes EDID (Extended Display Identification Data) from [linuxhw/EDID](https://github.com/linuxhw/EDID), providing 140,000+ display profiles in two formats.
 
 ## Data Formats
 
@@ -21,9 +21,9 @@ A versioned data lake with full SQL query capabilities.
 -- Remote access example
 INSTALL ducklake; LOAD ducklake;
 
-ATTACH 'https://github.com/lokkju/linuxhw-dataset/raw/main/data/edid.ducklake' AS edid (
+ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/edid.ducklake' AS edid (
     TYPE ducklake,
-    DATA_PATH 'https://github.com/lokkju/linuxhw-dataset/raw/main/data'
+    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data'
 );
 
 SELECT vendor, model, width_px, height_px, manufacture_year
@@ -55,8 +55,8 @@ A compact binary format for web and embedded applications.
 ### Clone and Setup
 
 ```bash
-git clone --recursive https://github.com/lokkju/linuxhw-dataset
-cd linuxhw-dataset
+git clone --recursive https://github.com/lokkju/linuxhw-datasets
+cd linuxhw-datasets
 uv sync
 ```
 
@@ -90,7 +90,7 @@ uv run edid-build stats
 ## Project Structure
 
 ```
-linuxhw-dataset/
+linuxhw-datasets/
 ├── upstream/EDID/          # Git submodule of linuxhw/EDID
 ├── src/
 │   ├── edid_build/         # Build tools (ingest, generate, cli)

@@ -1,7 +1,7 @@
 [project]
-name = "linuxhw-dataset"
+name = "linuxhw-datasets"
 version = "0.1.0"
-description = "LinuxHW EDID dataset with DuckLake and RoaringBuckets formats"
+description = "LinuxHW datasets (EDID and more) with DuckLake and RoaringBuckets formats"
 readme = "CLAUDE.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.11"

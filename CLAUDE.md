@@ -1,11 +1,11 @@
-# LinuxHW Dataset
+# LinuxHW Datasets
 
-A cross-platform EDID (Extended Display Identification Data) dataset built from the [linuxhw/EDID](https://github.com/linuxhw/EDID) repository.
+A collection of datasets built from [linuxhw](https://github.com/linuxhw) repositories, starting with EDID (Extended Display Identification Data) from [linuxhw/EDID](https://github.com/linuxhw/EDID).
 
 ## Project Structure
 
 ```
-linuxhw-dataset/
+linuxhw-datasets/
 ├── upstream/EDID/          # Git submodule of linuxhw/EDID
 ├── src/
 │   ├── edid_build/         # Build tools (ingest, generate, cli)
@@ -21,7 +21,7 @@ linuxhw-dataset/
 
 ```bash
 # Clone with submodule
-git clone --recursive https://github.com/lokkju/linuxhw-dataset
+git clone --recursive https://github.com/lokkju/linuxhw-datasets
 
 # Install dependencies
 uv sync

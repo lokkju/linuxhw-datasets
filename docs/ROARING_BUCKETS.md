@@ -174,4 +174,4 @@ The format is standardized and supported by libraries in many languages:
 ## Reference Implementations
 
 - **JavaScript**: [linuxhw-browser](https://github.com/lokkju/linuxhw-browser) (`src/bucket-loader.js`, `src/index-loader.js`)
-- **Python Generator**: [linuxhw-dataset](https://github.com/lokkju/linuxhw-dataset) (`src/edid_build/generate.py`)
+- **Python Generator**: [linuxhw-datasets](https://github.com/lokkju/linuxhw-datasets) (`src/edid_build/generate.py`)

@@ -1,6 +1,6 @@
 # DuckLake Implementation
 
-This document describes the DuckLake-based storage format used by the LinuxHW Dataset for versioned, queryable EDID data.
+This document describes the DuckLake-based storage format used by LinuxHW Datasets for versioned, queryable EDID data.
 
 ## Overview
 
@@ -20,9 +20,9 @@ INSTALL ducklake;
 LOAD ducklake;
 
 -- Attach the remote dataset
-ATTACH 'https://github.com/lokkju/linuxhw-dataset/raw/main/data/edid.ducklake' AS edid (
+ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/edid.ducklake' AS edid (
     TYPE ducklake,
-    DATA_PATH 'https://github.com/lokkju/linuxhw-dataset/raw/main/data'
+    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data'
 );
 
 -- Query displays
