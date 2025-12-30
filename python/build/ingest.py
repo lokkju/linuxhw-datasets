@@ -195,33 +195,54 @@ def _result_to_dict(result: tuple, repo_str: str) -> dict:
     }
 
 
+def _get_next_batch_number(output_dir: Path, prefix: str) -> int:
+    """Find the next available batch number for files with given prefix."""
+    existing = list(output_dir.glob(f"{prefix}_*.parquet"))
+    if not existing:
+        return 0
+
+    max_batch = -1
+    for f in existing:
+        # Extract batch number from filename like "edid_20250106-cc83e52221a9_047.parquet"
+        try:
+            batch_str = f.stem.split("_")[-1]
+            batch_num = int(batch_str)
+            max_batch = max(max_batch, batch_num)
+        except (ValueError, IndexError):
+            continue
+
+    return max_batch + 1
+
+
 def _write_parquet_files(
     records: list[dict],
     output_dir: Path,
     commit: str,
+    commit_date: str,
     batch_size: int,
-    is_incremental: bool = False,
     show_progress: bool = True,
 ) -> list[Path]:
     """Write records to parquet files with custom naming.
 
-    Full ingest: edid_{commit}_{batch:03d}.parquet
-    Incremental: edid_{commit}_incr_{timestamp}_{batch:03d}.parquet
+    Format: edid_{date}-{commit}_{batch:03d}.parquet
+    Example: edid_20250106-cc83e52221a9_000.parquet
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     written_files = []
 
-    # Generate timestamp for incremental files
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S") if is_incremental else None
+    # Build prefix from date and commit
+    date_compact = commit_date.replace("-", "")
+    prefix = f"edid_{date_compact}-{commit}"
 
-    for batch_num, i in enumerate(range(0, len(records), batch_size)):
+    # Find next available batch number (for incremental updates)
+    start_batch = _get_next_batch_number(output_dir, prefix)
+
+    for batch_idx, i in enumerate(range(0, len(records), batch_size)):
         batch = records[i:i + batch_size]
+        batch_num = start_batch + batch_idx
 
         # Build filename
-        if is_incremental:
-            filename = f"edid_{commit}_incr_{timestamp}_{batch_num:03d}.parquet"
-        else:
-            filename = f"edid_{commit}_{batch_num:03d}.parquet"
+        filename = f"{prefix}_{batch_num:03d}.parquet"
 
         filepath = output_dir / filename
 
@@ -431,8 +452,8 @@ def ingest_edid_repo(
         if show_progress:
             print(f"Writing parquet files to {edids_dir}/...")
         written_files = _write_parquet_files(
-            records, edids_dir, commit, batch_size,
-            is_incremental=False, show_progress=show_progress
+            records, edids_dir, commit, upstream_info["date"], batch_size,
+            show_progress=show_progress
         )
 
         # Create DuckLake and register files
@@ -519,8 +540,8 @@ def ingest_edid_repo(
                 if show_progress:
                     print(f"Adding {len(records_to_add)} records...")
                 written_files = _write_parquet_files(
-                    records_to_add, edids_dir, commit, batch_size,
-                    is_incremental=True, show_progress=show_progress
+                    records_to_add, edids_dir, commit, upstream_info["date"], batch_size,
+                    show_progress=show_progress
                 )
                 for filepath in written_files:
                     conn.execute(f"CALL ducklake_add_data_files('edid', 'edids', '{filepath}')")
