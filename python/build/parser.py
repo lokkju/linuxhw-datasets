@@ -1,6 +1,5 @@
 """Parse edid-decode text files from linuxhw/EDID repository."""
 
-import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,8 +9,8 @@ from pathlib import Path
 class ParsedEdid:
     """Parsed EDID data from an edid-decode text file."""
 
-    md5_hash: bytes  # 16 bytes
-    md5_hex: str  # 32 char hex string
+    linuxhw_id: bytes  # 6 bytes (from filename)
+    linuxhw_id_hex: str  # 12 char hex string (filename)
     raw_edid: bytes  # 128-512 bytes
 
     # Parsed metadata (from EDID content)
@@ -176,9 +175,14 @@ def parse_edid_file(file_path: Path) -> ParsedEdid | None:
     if raw_edid is None:
         return None
 
-    # Compute MD5 hash
-    md5_hash = hashlib.md5(raw_edid).digest()
-    md5_hex = md5_hash.hex()
+    # Extract linuxhw ID from filename (opaque 12-char hex identifier)
+    linuxhw_id_hex = file_path.name.upper()
+    if len(linuxhw_id_hex) != 12:
+        return None  # Invalid filename format
+    try:
+        linuxhw_id = bytes.fromhex(linuxhw_id_hex)
+    except ValueError:
+        return None  # Invalid hex in filename
 
     # Parse metadata from EDID content
     metadata = parse_metadata(content, raw_edid)
@@ -195,8 +199,8 @@ def parse_edid_file(file_path: Path) -> ParsedEdid | None:
         metadata["screen_size_inches"] = screen_size
 
     return ParsedEdid(
-        md5_hash=md5_hash,
-        md5_hex=md5_hex,
+        linuxhw_id=linuxhw_id,
+        linuxhw_id_hex=linuxhw_id_hex,
         raw_edid=raw_edid,
         source_path=str(file_path),
         **metadata,

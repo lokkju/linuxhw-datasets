@@ -7,7 +7,7 @@ import './edid-viewer.js';
  * Accepts the browser's edid object format and passes data to edid-viewer.
  *
  * @element edid-detail
- * @prop {Object} edid - EDID entry from bucket loader ({ idHex/md5Hex, rawEdid, _globalIndex })
+ * @prop {Object} edid - EDID entry from bucket loader ({ idHex, rawEdid, _globalIndex })
  * @prop {Object} vendorMapping - Vendor code to name mapping for GitHub URLs
  * @prop {Boolean} mobile - Shows back button in mobile view
  * @fires back - Dispatched when back button is clicked
@@ -49,11 +49,14 @@ export class EdidDetail extends LitElement {
     this.mobile = false;
   }
 
-  _getGitHubUrl() {
-    if (!this.edid?.rawEdid) return null;
-    const id = this.edid.idHex || this.edid.md5Hex;
-    if (!id) return null;
-    return computeGitHubUrl(this.edid.rawEdid, id, this.vendorMapping || {});
+  _getLinuxhwId() {
+    // Use the ID directly from the bucket (opaque identifier)
+    return this.edid?.idHex || null;
+  }
+
+  _getGitHubUrl(linuxhwId) {
+    if (!this.edid?.rawEdid || !linuxhwId) return null;
+    return computeGitHubUrl(this.edid.rawEdid, linuxhwId, this.vendorMapping || {});
   }
 
   render() {
@@ -61,13 +64,14 @@ export class EdidDetail extends LitElement {
       return html`<div class="empty">Select an EDID to view details</div>`;
     }
 
-    const id = this.edid.idHex || this.edid.md5Hex;
-    const githubUrl = this._getGitHubUrl();
+    // Get the linuxhw ID from the bucket data
+    const linuxhwId = this._getLinuxhwId();
+    const githubUrl = this._getGitHubUrl(linuxhwId);
 
     return html`
       <edid-viewer
         .edidData=${this.edid.rawEdid}
-        .hash=${id}
+        .hash=${linuxhwId}
         .githubUrl=${githubUrl}
         ?show-back=${this.mobile}
         @back=${this._onBack}

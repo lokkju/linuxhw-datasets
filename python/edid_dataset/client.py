@@ -11,14 +11,8 @@ from pathlib import Path
 class EdidEntry:
     """A single EDID entry from the dataset."""
 
-    md5_hex: str
+    linuxhw_id: str  # 12-char hex identifier from linuxhw/EDID repo
     raw_edid: bytes
-    year: int | None = None
-    width_px: int | None = None
-    height_px: int | None = None
-    width_mm: int | None = None
-    height_mm: int | None = None
-    display_type: str | None = None
 
 
 class EdidDataset:
@@ -36,10 +30,8 @@ class EdidDataset:
         else:
             self._manifest = {}
 
-        # Lazy load indexes
-        self._vendor_index: dict | None = None
-        self._resolution_index: dict | None = None
-        self._year_index: dict | None = None
+        # Cache bucket format version
+        self._bucket_format = self._manifest.get("bucket_format", 1)
 
     def __del__(self):
         """Clean up memory-mapped files."""
@@ -53,19 +45,19 @@ class EdidDataset:
         """Total number of EDID entries."""
         return self._manifest.get("total_entries", 0)
 
-    def get(self, md5_hex: str) -> EdidEntry | None:
-        """Look up an EDID by its MD5 hex string."""
-        if len(md5_hex) < 2:
+    def get(self, linuxhw_id: str) -> EdidEntry | None:
+        """Look up an EDID by its linuxhw ID (12-char hex string)."""
+        if len(linuxhw_id) != 12:
             return None
 
         # Convert hex to bytes for lookup
         try:
-            md5_bytes = bytes.fromhex(md5_hex.ljust(32, "0"))
+            id_bytes = bytes.fromhex(linuxhw_id)
         except ValueError:
             return None
 
-        prefix = md5_bytes[0]
-        remaining = md5_bytes[1:]
+        prefix = id_bytes[0]
+        remaining = id_bytes[1:6]  # 5 bytes for v3 format
 
         # Get bucket
         bucket = self._get_bucket(prefix)
@@ -73,7 +65,7 @@ class EdidDataset:
             return None
 
         # Binary search in bucket
-        return self._search_bucket(bucket, prefix, remaining, md5_hex)
+        return self._search_bucket(bucket, prefix, remaining, linuxhw_id)
 
     def _get_bucket(self, prefix: int) -> mmap.mmap | None:
         """Get memory-mapped bucket file."""
@@ -95,7 +87,7 @@ class EdidDataset:
         bucket: mmap.mmap,
         prefix: int,
         remaining: bytes,
-        md5_hex: str,
+        linuxhw_id: str,
     ) -> EdidEntry | None:
         """Binary search within a bucket for the given key."""
         # Parse header
@@ -108,25 +100,25 @@ class EdidDataset:
         if entry_count == 0:
             return None
 
-        # Key section starts at offset 16
+        # v3 format: 5 bytes per key (6-byte ID minus prefix byte)
         keys_offset = 16
-        metadata_offset = keys_offset + entry_count * 15
-        offsets_offset = metadata_offset + entry_count * 16
+        key_size = 5
+        offsets_offset = keys_offset + entry_count * key_size
 
         # Binary search
         low, high = 0, entry_count - 1
         while low <= high:
             mid = (low + high) // 2
-            key_start = keys_offset + mid * 15
-            key = bucket[key_start : key_start + 15]
+            key_start = keys_offset + mid * key_size
+            key = bucket[key_start : key_start + key_size]
 
-            if key < remaining[:15]:
+            if key < remaining:
                 low = mid + 1
-            elif key > remaining[:15]:
+            elif key > remaining:
                 high = mid - 1
             else:
                 # Found it
-                return self._read_entry(bucket, mid, md5_hex, metadata_offset, offsets_offset, values_offset)
+                return self._read_entry(bucket, mid, linuxhw_id, offsets_offset, values_offset)
 
         return None
 
@@ -134,26 +126,11 @@ class EdidDataset:
         self,
         bucket: mmap.mmap,
         index: int,
-        md5_hex: str,
-        metadata_offset: int,
+        linuxhw_id: str,
         offsets_offset: int,
         values_offset: int,
     ) -> EdidEntry:
         """Read entry data from bucket."""
-        # Read metadata
-        meta_start = metadata_offset + index * 16
-        (
-            vendor_id,
-            model_id,
-            year,
-            width_px,
-            height_px,
-            width_mm,
-            height_mm,
-            dtype_val,
-            flags,
-        ) = struct.unpack_from("<HHHHHHHBB", bucket, meta_start)
-
         # Read offset
         offset_start = offsets_offset + index * 4
         packed = struct.unpack_from("<I", bucket, offset_start)[0]
@@ -166,58 +143,18 @@ class EdidDataset:
         raw_edid = bytes(bucket[edid_start : edid_start + length])
 
         # Trim to actual EDID length (remove padding)
-        # EDID is either 128 or 256 bytes typically
+        # EDID is either 128 or 256+ bytes typically
         if len(raw_edid) > 128 and raw_edid[126] == 0:
             raw_edid = raw_edid[:128]
 
-        dtype = {0: "analog", 1: "digital", 2: None}.get(dtype_val)
-
         return EdidEntry(
-            md5_hex=md5_hex[:32],
+            linuxhw_id=linuxhw_id.upper(),
             raw_edid=raw_edid,
-            year=year if year else None,
-            width_px=width_px if width_px else None,
-            height_px=height_px if height_px else None,
-            width_mm=width_mm if width_mm else None,
-            height_mm=height_mm if height_mm else None,
-            display_type=dtype,
         )
 
-    @property
-    def vendor_index(self) -> dict:
-        """Lazy-load vendor index."""
-        if self._vendor_index is None:
-            path = self.data_path / "metadata" / "vendors.json"
-            if path.exists():
-                self._vendor_index = json.loads(path.read_text())
-            else:
-                self._vendor_index = {}
-        return self._vendor_index
-
-    @property
-    def resolution_index(self) -> dict:
-        """Lazy-load resolution index."""
-        if self._resolution_index is None:
-            path = self.data_path / "metadata" / "resolutions.json"
-            if path.exists():
-                self._resolution_index = json.loads(path.read_text())
-            else:
-                self._resolution_index = {}
-        return self._resolution_index
-
-    def get_by_vendor(self, vendor: str) -> list[str]:
-        """Get all MD5 hashes for a vendor."""
-        return self.vendor_index.get(vendor, [])
-
-    def get_by_resolution(self, width: int, height: int) -> list[str]:
-        """Get all MD5 hashes for a resolution."""
-        key = f"{width}x{height}"
-        return self.resolution_index.get(key, [])
-
-    def list_vendors(self) -> list[str]:
-        """List all vendors in the dataset."""
-        return list(self.vendor_index.keys())
-
-    def list_resolutions(self) -> list[str]:
-        """List all resolutions in the dataset."""
-        return list(self.resolution_index.keys())
+    def get_vendor_mapping(self) -> dict[str, str]:
+        """Get vendor code to human-readable name mapping."""
+        path = self.data_path / "vendors.json"
+        if path.exists():
+            return json.loads(path.read_text())
+        return {}

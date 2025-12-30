@@ -1,5 +1,6 @@
 """Ingest EDID files from linuxhw/EDID repository into DuckDB."""
 
+import os
 from pathlib import Path
 
 import duckdb
@@ -12,8 +13,8 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Create the database schema."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS edids (
-            md5_hash BLOB PRIMARY KEY,
-            md5_hex VARCHAR NOT NULL,
+            linuxhw_id BLOB PRIMARY KEY,
+            linuxhw_id_hex VARCHAR NOT NULL,
             raw_edid BLOB NOT NULL,
 
             -- Parsed metadata (from EDID content)
@@ -83,7 +84,7 @@ def ingest_edid_repo(
     repo_path: Path,
     db_path: Path,
     *,
-    batch_size: int = 1000,
+    batch_size: int = 5000,
     show_progress: bool = True,
 ) -> dict:
     """Ingest EDID repository into DuckDB database."""
@@ -104,14 +105,16 @@ def ingest_edid_repo(
         "duplicates": 0,
     }
 
-    # Connect to DuckDB
-    conn = duckdb.connect(str(db_path))
+    # Connect to DuckDB with performance settings
+    conn = duckdb.connect(str(db_path), config={
+        'threads': os.cpu_count(),
+    })
     create_schema(conn)
 
     # Prepare insert statement
     insert_sql = """
         INSERT OR IGNORE INTO edids (
-            md5_hash, md5_hex, raw_edid,
+            linuxhw_id, linuxhw_id_hex, raw_edid,
             vendor, model, product_name, serial_number,
             manufacture_year, manufacture_week,
             path_vendor, path_model,
@@ -142,8 +145,8 @@ def ingest_edid_repo(
             relative_path = str(file_path)
 
         batch.append((
-            parsed.md5_hash,
-            parsed.md5_hex,
+            parsed.linuxhw_id,
+            parsed.linuxhw_id_hex,
             parsed.raw_edid,
             parsed.vendor,
             parsed.model,

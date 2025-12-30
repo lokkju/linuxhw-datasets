@@ -1,5 +1,8 @@
 /**
  * EDID utility functions for path computation and vendor code decoding.
+ *
+ * The linuxhw ID is an opaque 12-character hex identifier extracted from
+ * filenames in the linuxhw/EDID repository. We do not compute or derive it.
  */
 
 /**

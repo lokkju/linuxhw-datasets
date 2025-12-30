@@ -82,28 +82,28 @@ def generate_compact_files(
         "bucket_counts": [],  # Entry count per bucket (0-255)
     }
 
-    # Get all entries ordered by MD5 hash
+    # Get all entries ordered by linuxhw ID
     entries = conn.execute("""
-        SELECT md5_hash, raw_edid, path_vendor, path_model, product_name,
+        SELECT linuxhw_id, raw_edid, path_vendor, path_model, product_name,
                manufacture_year, width_px, height_px, width_mm, height_mm,
                display_type, screen_size_inches
         FROM edids
-        ORDER BY md5_hash
+        ORDER BY linuxhw_id
     """).fetchall()
 
     stats["total_entries"] = len(entries)
 
-    # Build entry index (md5_hex -> row index) for bitmap lookups
-    md5_to_index = {}
+    # Build entry index (linuxhw_id_hex -> row index) for bitmap lookups
+    id_to_index = {}
     for i, entry in enumerate(entries):
-        md5_hex = entry[0].hex()
-        md5_to_index[md5_hex] = i
+        id_hex = entry[0].hex().upper()
+        id_to_index[id_hex] = i
 
-    # Group entries by first byte of MD5 (bucket prefix)
+    # Group entries by first byte of linuxhw ID (bucket prefix)
     buckets: dict[int, list] = {i: [] for i in range(256)}
     for entry in entries:
-        md5_hash = entry[0]
-        prefix = md5_hash[0]
+        linuxhw_id = entry[0]
+        prefix = linuxhw_id[0]
         buckets[prefix].append(entry)
 
     # Write bucket files and track counts
@@ -127,19 +127,19 @@ def generate_compact_files(
 
     # Build and write packed Roaring bitmap indexes
     vendor_stats = build_packed_index(
-        conn, "path_vendor", metadata_dir / "vendors.idx", md5_to_index
+        conn, "path_vendor", metadata_dir / "vendors.idx", id_to_index
     )
     product_stats = build_product_index(
-        conn, metadata_dir / "products.idx", md5_to_index
+        conn, metadata_dir / "products.idx", id_to_index
     )
     code_stats = build_code_index(
-        conn, metadata_dir / "codes.idx", md5_to_index
+        conn, metadata_dir / "codes.idx", id_to_index
     )
     size_stats = build_packed_size_index(
-        conn, metadata_dir / "sizes.idx", md5_to_index
+        conn, metadata_dir / "sizes.idx", id_to_index
     )
     path_stats = build_path_index(
-        conn, metadata_dir / "paths.idx", md5_to_index
+        conn, metadata_dir / "paths.idx", id_to_index
     )
 
     # Generate vendors.json for GitHub path computation
@@ -179,8 +179,7 @@ def generate_compact_files(
 def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
     """Write a single bucket file (v3 format: 6-byte linuxhw ID + raw EDID).
 
-    v3 format uses 6-byte IDs (first 6 bytes of MD5) instead of full 16-byte MD5.
-    This matches the linuxhw/EDID filename format: MD5[:12].upper()
+    v3 format uses 6-byte linuxhw IDs (opaque identifiers from linuxhw/EDID filenames).
     """
     # Sort entries by remaining 5 bytes of ID (first byte is bucket prefix)
     entries.sort(key=lambda e: e[0][1:6])
@@ -204,10 +203,10 @@ def write_bucket_file(path: Path, prefix: int, entries: list) -> None:
     data.extend(struct.pack("<I", values_offset))
     data.extend(b"\x00" * 4)  # Reserved
 
-    # Keys (5 bytes each, bytes 1-5 of 6-byte ID, byte 0 is bucket prefix)
+    # Keys (5 bytes each, bytes 1-5 of 6-byte linuxhw ID, byte 0 is bucket prefix)
     for entry in entries:
-        md5_hash = entry[0]
-        data.extend(md5_hash[1:6])  # Bytes 1-5 of MD5 (6-byte ID minus prefix)
+        linuxhw_id = entry[0]
+        data.extend(linuxhw_id[1:6])  # Bytes 1-5 of ID (prefix byte is implicit)
 
     # Build values section and offsets
     values_section = bytearray()
@@ -350,11 +349,11 @@ def build_packed_index(
     conn: duckdb.DuckDBPyConnection,
     column: str,
     output_path: Path,
-    md5_to_index: dict[str, int],
+    id_to_index: dict[str, int],
 ) -> dict:
     """Build a packed Roaring bitmap index for a column."""
     result = conn.execute(f"""
-        SELECT {column}, LIST(md5_hex ORDER BY md5_hex)
+        SELECT {column}, LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
         FROM edids
         WHERE {column} IS NOT NULL
         GROUP BY {column}
@@ -362,11 +361,11 @@ def build_packed_index(
     """).fetchall()
 
     entries = []
-    for value, md5_list in result:
+    for value, id_list in result:
         bitmap = BitMap()
-        for md5_hex in md5_list:
-            if md5_hex in md5_to_index:
-                bitmap.add(md5_to_index[md5_hex])
+        for id_hex in id_list:
+            if id_hex in id_to_index:
+                bitmap.add(id_to_index[id_hex])
         entries.append((str(value), bitmap))
 
     return write_packed_index(output_path, entries)
@@ -424,33 +423,33 @@ def strip_vendor_prefix(product_name: str, vendor: str | None) -> str:
 def build_product_index(
     conn: duckdb.DuckDBPyConnection,
     output_path: Path,
-    md5_to_index: dict[str, int],
+    id_to_index: dict[str, int],
 ) -> dict:
     """Build a packed product index using product_name with vendor prefix stripped."""
     result = conn.execute("""
-        SELECT product_name, path_vendor, md5_hex
+        SELECT product_name, path_vendor, linuxhw_id_hex
         FROM edids
         WHERE product_name IS NOT NULL
         ORDER BY product_name
     """).fetchall()
 
     # Group by normalized model name
-    model_to_md5s: dict[str, list[str]] = {}
-    for product_name, vendor, md5_hex in result:
+    model_to_ids: dict[str, list[str]] = {}
+    for product_name, vendor, id_hex in result:
         # Strip vendor prefix
         model = strip_vendor_prefix(product_name, vendor)
         if model:
-            if model not in model_to_md5s:
-                model_to_md5s[model] = []
-            model_to_md5s[model].append(md5_hex)
+            if model not in model_to_ids:
+                model_to_ids[model] = []
+            model_to_ids[model].append(id_hex)
 
     # Build bitmaps
     entries = []
-    for model in sorted(model_to_md5s.keys()):
+    for model in sorted(model_to_ids.keys()):
         bitmap = BitMap()
-        for md5_hex in model_to_md5s[model]:
-            if md5_hex in md5_to_index:
-                bitmap.add(md5_to_index[md5_hex])
+        for id_hex in model_to_ids[model]:
+            if id_hex in id_to_index:
+                bitmap.add(id_to_index[id_hex])
         entries.append((model, bitmap))
 
     return write_packed_index(output_path, entries)
@@ -459,11 +458,11 @@ def build_product_index(
 def build_code_index(
     conn: duckdb.DuckDBPyConnection,
     output_path: Path,
-    md5_to_index: dict[str, int],
+    id_to_index: dict[str, int],
 ) -> dict:
     """Build a packed index for vendor+model PNP ID codes (e.g., DEL01101, SAM0A7C)."""
     result = conn.execute("""
-        SELECT vendor || model as pnp_code, LIST(md5_hex ORDER BY md5_hex)
+        SELECT vendor || model as pnp_code, LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
         FROM edids
         WHERE vendor IS NOT NULL AND model IS NOT NULL
         GROUP BY pnp_code
@@ -471,11 +470,11 @@ def build_code_index(
     """).fetchall()
 
     entries = []
-    for code, md5_list in result:
+    for code, id_list in result:
         bitmap = BitMap()
-        for md5_hex in md5_list:
-            if md5_hex in md5_to_index:
-                bitmap.add(md5_to_index[md5_hex])
+        for id_hex in id_list:
+            if id_hex in id_to_index:
+                bitmap.add(id_to_index[id_hex])
         entries.append((code, bitmap))
 
     return write_packed_index(output_path, entries)
@@ -484,11 +483,11 @@ def build_code_index(
 def build_packed_size_index(
     conn: duckdb.DuckDBPyConnection,
     output_path: Path,
-    md5_to_index: dict[str, int],
+    id_to_index: dict[str, int],
 ) -> dict:
     """Build a packed screen size index."""
     result = conn.execute("""
-        SELECT screen_size_inches, LIST(md5_hex ORDER BY md5_hex)
+        SELECT screen_size_inches, LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
         FROM edids
         WHERE screen_size_inches IS NOT NULL
         GROUP BY screen_size_inches
@@ -496,11 +495,11 @@ def build_packed_size_index(
     """).fetchall()
 
     entries = []
-    for size, md5_list in result:
+    for size, id_list in result:
         bitmap = BitMap()
-        for md5_hex in md5_list:
-            if md5_hex in md5_to_index:
-                bitmap.add(md5_to_index[md5_hex])
+        for id_hex in id_list:
+            if id_hex in id_to_index:
+                bitmap.add(id_to_index[id_hex])
         entries.append((f"{size:.1f}", bitmap))
 
     return write_packed_index(output_path, entries)
@@ -509,18 +508,18 @@ def build_packed_size_index(
 def build_path_index(
     conn: duckdb.DuckDBPyConnection,
     output_path: Path,
-    md5_to_index: dict[str, int],
+    id_to_index: dict[str, int],
 ) -> dict:
     """Build a packed index for source paths (directory portion only).
 
     Paths like "Digital/Dell/DEL4080/abc123" become "Digital/Dell/DEL4080".
     This allows browsing by the linuxhw/EDID repository structure.
     """
-    # Extract directory path (remove the hash filename at the end)
+    # Extract directory path (remove the ID filename at the end)
     result = conn.execute("""
         SELECT
             regexp_replace(source_path, '/[^/]+$', '') as dir_path,
-            LIST(md5_hex ORDER BY md5_hex)
+            LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
         FROM edids
         WHERE source_path IS NOT NULL
         GROUP BY dir_path
@@ -528,11 +527,11 @@ def build_path_index(
     """).fetchall()
 
     entries = []
-    for path, md5_list in result:
+    for path, id_list in result:
         bitmap = BitMap()
-        for md5_hex in md5_list:
-            if md5_hex in md5_to_index:
-                bitmap.add(md5_to_index[md5_hex])
+        for id_hex in id_list:
+            if id_hex in id_to_index:
+                bitmap.add(id_to_index[id_hex])
         entries.append((path, bitmap))
 
     return write_packed_index(output_path, entries)
