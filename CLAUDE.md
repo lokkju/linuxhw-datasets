@@ -6,15 +6,20 @@ A collection of datasets built from [linuxhw](https://github.com/linuxhw) reposi
 
 ```
 linuxhw-datasets/
-├── upstream/EDID/          # Git submodule of linuxhw/EDID
+├── upstream/EDID/              # Git submodule of linuxhw/EDID
 ├── src/
-│   ├── edid_build/         # Build tools (ingest, generate, cli)
-│   └── edid_dataset/       # Python client library
+│   ├── edid_build/             # Build tools (ingest, generate, cli)
+│   └── edid_dataset/           # Python client library
 ├── data/
-│   ├── edid.ducklake       # DuckLake catalog (time-travel, versioned)
-│   ├── edids/              # Parquet files (edid_{date}-{commit}_{batch}.parquet)
-│   └── main/edids/         # DuckLake delete markers
-└── docs/                   # Documentation
+│   ├── ducklake/               # DuckLake format
+│   │   ├── edid.ducklake       # Catalog (time-travel, versioned)
+│   │   ├── edids/              # Parquet files
+│   │   └── versions.json       # Version history
+│   └── roaringbuckets/         # RoaringBuckets format
+│       ├── buckets/            # 256 bucket files
+│       ├── metadata/           # Index files
+│       └── manifest.json       # Dataset manifest
+└── docs/                       # Documentation
 ```
 
 ## Quick Start
@@ -44,7 +49,7 @@ uv run edid-build update --check-only
 # Force re-ingest even if no changes
 uv run edid-build update --force
 
-# Manual ingest (defaults: upstream/EDID → data/edid.ducklake)
+# Manual ingest (defaults: upstream/EDID → data/ducklake/)
 uv run edid-build ingest
 
 # Generate compact binary bucket files

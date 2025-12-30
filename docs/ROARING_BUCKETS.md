@@ -13,7 +13,7 @@ The format is designed for:
 ## Directory Structure
 
 ```
-data/
+data/roaringbuckets/
   manifest.json           # Dataset metadata
   buckets/
     00.bin ... ff.bin     # 256 bucket files (by ID prefix)

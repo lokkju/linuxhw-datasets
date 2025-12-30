@@ -25,7 +25,7 @@ def main():
     "-o",
     "output_path",
     type=click.Path(path_type=Path),
-    default=Path("data/edid.ducklake"),
+    default=Path("data/ducklake/edid.ducklake"),
     help="Output DuckLake database path",
 )
 @click.option(
@@ -87,7 +87,7 @@ def ingest(
     "-d",
     "db_path",
     type=click.Path(exists=True, path_type=Path),
-    default=Path("data/edid.ducklake"),
+    default=Path("data/ducklake/edid.ducklake"),
     help="Input DuckLake database path",
 )
 @click.option(
@@ -95,8 +95,8 @@ def ingest(
     "-o",
     "output_path",
     type=click.Path(path_type=Path),
-    default=Path("data"),
-    help="Output directory for compact files",
+    default=Path("data/roaringbuckets"),
+    help="Output directory for RoaringBuckets files",
 )
 @click.option(
     "--upstream",
@@ -129,7 +129,7 @@ def generate(db_path: Path, output_path: Path, upstream_path: Path | None):
     "-d",
     "db_path",
     type=click.Path(exists=True, path_type=Path),
-    default=Path("data/edid.ducklake"),
+    default=Path("data/ducklake/edid.ducklake"),
     help="DuckLake database path",
 )
 def stats(db_path: Path):
@@ -186,8 +186,8 @@ def stats(db_path: Path):
     "-d",
     "data_dir",
     type=click.Path(exists=True, path_type=Path),
-    default=Path("data"),
-    help="Data directory containing versions.json",
+    default=Path("data/ducklake"),
+    help="DuckLake data directory containing versions.json",
 )
 def version(data_dir: Path):
     """Show current data version."""
@@ -226,7 +226,7 @@ def version(data_dir: Path):
     "-o",
     "output_path",
     type=click.Path(path_type=Path),
-    default=Path("data/edid.ducklake"),
+    default=Path("data/ducklake/edid.ducklake"),
     help="Output DuckLake database path",
 )
 @click.option(

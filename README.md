@@ -42,9 +42,9 @@ A versioned data lake with full SQL query capabilities via DuckDB.
 -- Remote access
 INSTALL ducklake; LOAD ducklake;
 
-ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/edid.ducklake' AS edid (
+ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/ducklake/edid.ducklake' AS edid (
     TYPE ducklake,
-    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data'
+    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/ducklake'
 );
 
 -- Find Dell monitors by resolution
@@ -94,17 +94,22 @@ uv run edid-build stats
 
 ```
 linuxhw-datasets/
-├── upstream/EDID/          # Git submodule of linuxhw/EDID
+├── upstream/EDID/              # Git submodule of linuxhw/EDID
 ├── src/
-│   ├── edid_build/         # Build tools (ingest, generate, cli)
-│   └── edid_dataset/       # Python client library
+│   ├── edid_build/             # Build tools (ingest, generate, cli)
+│   └── edid_dataset/           # Python client library
 ├── data/
-│   ├── edid.ducklake       # DuckLake catalog
-│   ├── edids/              # Parquet data files
-│   └── buckets/            # RoaringBuckets binary files
+│   ├── ducklake/               # DuckLake format
+│   │   ├── edid.ducklake       # Catalog file
+│   │   ├── edids/              # Parquet data files
+│   │   └── versions.json       # Version history
+│   └── roaringbuckets/         # RoaringBuckets format
+│       ├── buckets/            # 256 bucket files
+│       ├── metadata/           # Index files
+│       └── manifest.json       # Dataset manifest
 └── docs/
-    ├── DUCKLAKE.md         # DuckLake documentation
-    └── ROARING_BUCKETS.md  # Binary format specification
+    ├── DUCKLAKE.md             # DuckLake documentation
+    └── ROARING_BUCKETS.md      # Binary format specification
 ```
 
 ## License

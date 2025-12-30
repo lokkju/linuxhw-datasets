@@ -20,9 +20,9 @@ INSTALL ducklake;
 LOAD ducklake;
 
 -- Attach the remote dataset
-ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/edid.ducklake' AS edid (
+ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/ducklake/edid.ducklake' AS edid (
     TYPE ducklake,
-    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data'
+    DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/ducklake'
 );
 
 -- Query displays
@@ -39,9 +39,9 @@ LIMIT 10;
 INSTALL ducklake;
 LOAD ducklake;
 
-ATTACH 'data/edid.ducklake' AS edid (
+ATTACH 'data/ducklake/edid.ducklake' AS edid (
     TYPE ducklake,
-    DATA_PATH 'data'
+    DATA_PATH 'data/ducklake'
 );
 
 SELECT COUNT(*) FROM edid.edids;
@@ -76,12 +76,12 @@ The `edid.edids` table contains 19 columns:
 ## File Organization
 
 ```
-data/
+data/ducklake/
 ├── edid.ducklake           # DuckLake catalog file
 ├── edid.ducklake.wal       # Write-ahead log (during writes)
 ├── edids/                  # Parquet data files
+│   ├── edid_20250106-cc83e52221a9_000.parquet
 │   ├── edid_20250106-cc83e52221a9_001.parquet
-│   ├── edid_20250106-cc83e52221a9_002.parquet
 │   └── ...
 ├── main/edids/             # DuckLake delete markers
 │   └── *_deletions.parquet
