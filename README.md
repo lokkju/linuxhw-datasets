@@ -85,6 +85,41 @@ uv run edid-build generate
 uv run edid-build stats
 ```
 
+## Updating & Releases
+
+### Download Pre-built Releases
+
+Pre-built datasets are available as [GitHub Releases](https://github.com/lokkju/linuxhw-datasets/releases):
+
+- `linuxhw-edid-ducklake-{version}.tar.gz` - DuckLake format (~8 MB compressed)
+- `linuxhw-edid-roaringbuckets-{version}.tar.gz` - RoaringBuckets format (~13 MB compressed)
+
+### Manual Update
+
+To update from the latest upstream and create a release:
+
+```bash
+# Check for updates (no changes made)
+./scripts/release.sh --check-only
+
+# Update, rebuild, and prepare release
+./scripts/release.sh
+
+# Then follow the printed instructions to push and create release
+git push
+gh release create 'v2025.01.15-abc123def456' ...
+```
+
+The release script:
+1. Fetches latest from [linuxhw/EDID](https://github.com/linuxhw/EDID)
+2. Updates the submodule if changes found
+3. Runs `edid-build ingest` (DuckLake) and `edid-build generate` (RoaringBuckets)
+4. Creates release archives in `dist/`
+5. Commits changes locally
+6. Prints commands to push and create GitHub release
+
+Options: `--force` (rebuild even if no changes), `--no-commit` (skip commit)
+
 ## Related Projects
 
 - **[linuxhw-browser](https://github.com/lokkju/linuxhw-browser)** - Web-based EDID browser using RoaringBuckets
