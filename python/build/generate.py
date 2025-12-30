@@ -1,4 +1,4 @@
-"""Generate compact binary files from DuckDB database."""
+"""Generate compact binary files from DuckLake database."""
 
 import json
 import re
@@ -73,7 +73,15 @@ def generate_compact_files(
         import shutil
         shutil.rmtree(old_indexes_dir)
 
-    conn = duckdb.connect(str(db_path), read_only=True)
+    # Connect to DuckLake
+    conn = duckdb.connect()
+    conn.execute("INSTALL ducklake")
+    conn.execute("LOAD ducklake")
+
+    # Attach DuckLake database (read-only)
+    conn.execute(f"""
+        ATTACH '{db_path}' AS edid (TYPE ducklake)
+    """)
 
     stats = {
         "buckets_written": 0,
@@ -87,7 +95,7 @@ def generate_compact_files(
         SELECT linuxhw_id, raw_edid, path_vendor, path_model, product_name,
                manufacture_year, width_px, height_px, width_mm, height_mm,
                display_type, screen_size_inches
-        FROM edids
+        FROM edid.edids
         ORDER BY linuxhw_id
     """).fetchall()
 
@@ -286,7 +294,7 @@ def generate_vendors_json(conn: duckdb.DuckDBPyConnection, output_path: Path) ->
     # Get all unique vendor code -> path_vendor mappings
     result = conn.execute("""
         SELECT DISTINCT vendor as code, path_vendor as name
-        FROM edids
+        FROM edid.edids
         WHERE vendor IS NOT NULL AND path_vendor IS NOT NULL
         ORDER BY vendor
     """).fetchall()
@@ -394,7 +402,7 @@ def build_packed_index(
     """Build a packed Roaring bitmap index for a column."""
     result = conn.execute(f"""
         SELECT {column}, LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
-        FROM edids
+        FROM edid.edids
         WHERE {column} IS NOT NULL
         GROUP BY {column}
         ORDER BY {column}
@@ -468,7 +476,7 @@ def build_product_index(
     """Build a packed product index using product_name with vendor prefix stripped."""
     result = conn.execute("""
         SELECT product_name, path_vendor, linuxhw_id_hex
-        FROM edids
+        FROM edid.edids
         WHERE product_name IS NOT NULL
         ORDER BY product_name
     """).fetchall()
@@ -503,7 +511,7 @@ def build_code_index(
     """Build a packed index for vendor+model PNP ID codes (e.g., DEL01101, SAM0A7C)."""
     result = conn.execute("""
         SELECT vendor || model as pnp_code, LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
-        FROM edids
+        FROM edid.edids
         WHERE vendor IS NOT NULL AND model IS NOT NULL
         GROUP BY pnp_code
         ORDER BY pnp_code
@@ -528,7 +536,7 @@ def build_packed_size_index(
     """Build a packed screen size index."""
     result = conn.execute("""
         SELECT screen_size_inches, LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
-        FROM edids
+        FROM edid.edids
         WHERE screen_size_inches IS NOT NULL
         GROUP BY screen_size_inches
         ORDER BY screen_size_inches
@@ -560,7 +568,7 @@ def build_path_index(
         SELECT
             regexp_replace(source_path, '/[^/]+$', '') as dir_path,
             LIST(linuxhw_id_hex ORDER BY linuxhw_id_hex)
-        FROM edids
+        FROM edid.edids
         WHERE source_path IS NOT NULL
         GROUP BY dir_path
         ORDER BY dir_path

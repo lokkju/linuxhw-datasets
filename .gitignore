@@ -42,11 +42,14 @@ htmlcov/
 .mypy_cache/
 .pyright/
 
-# Generated data (distributed separately)
+# Generated data (web components - distributed separately)
 data/edid.duckdb
 data/buckets/
 data/metadata/
 data/manifest.json
+
+# DuckLake temporary files (but keep .ducklake and parquet files)
+data/*.ducklake.wal
 
 # But keep the data directory structure
 !data/.gitkeep
