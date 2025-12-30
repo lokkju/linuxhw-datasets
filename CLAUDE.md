@@ -1,11 +1,11 @@
-# EDID Dataset Project
+# LinuxHW Dataset
 
 A cross-platform EDID (Extended Display Identification Data) dataset built from the [linuxhw/EDID](https://github.com/linuxhw/EDID) repository.
 
 ## Project Structure
 
 ```
-edid-dataset/
+linuxhw-dataset/
 ├── upstream/EDID/          # Git submodule of linuxhw/EDID
 ├── src/
 │   ├── edid_build/         # Build tools (ingest, generate, cli)
@@ -14,8 +14,6 @@ edid-dataset/
 │   ├── edid.ducklake       # DuckLake catalog (time-travel, versioned)
 │   ├── edids/              # Parquet files (edid_{date}-{commit}_{batch}.parquet)
 │   └── main/edids/         # DuckLake delete markers
-├── js/                     # JavaScript client (future)
-├── demo/                   # Web demo
 └── docs/                   # Documentation
 ```
 
@@ -23,7 +21,7 @@ edid-dataset/
 
 ```bash
 # Clone with submodule
-git clone --recursive https://github.com/lokkju/edid-dataset
+git clone --recursive https://github.com/lokkju/linuxhw-dataset
 
 # Install dependencies
 uv sync
