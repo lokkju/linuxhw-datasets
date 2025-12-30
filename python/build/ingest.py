@@ -280,7 +280,9 @@ def ingest_edid_repo(
         )
     """)
 
-    # Insert in batches to control file size
+    # Insert in batches to control Parquet file size
+    # Use single transaction so all batches = one time-travel snapshot
+    conn.execute("BEGIN TRANSACTION")
     total_inserted = 0
     for i in range(0, len(unique_results), batch_size):
         batch = unique_results[i:i + batch_size]
@@ -308,12 +310,14 @@ def ingest_edid_repo(
             "checksum_valid": [r[18] for r in batch],
         })
 
-        # Insert batch
+        # Insert batch (creates one Parquet file per batch)
         conn.execute("INSERT INTO edid.edids SELECT * FROM arrow_table")
         total_inserted += len(batch)
 
         if show_progress:
             print(f"  Inserted batch {i // batch_size + 1}: {total_inserted}/{len(unique_results)}")
+
+    conn.execute("COMMIT")
 
     # Get final count
     result = conn.execute("SELECT COUNT(*) FROM edid.edids").fetchone()
