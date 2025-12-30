@@ -1,12 +1,33 @@
 # LinuxHW Datasets
 
-A collection of datasets built from [linuxhw](https://github.com/linuxhw) repositories. Currently includes EDID (Extended Display Identification Data) from [linuxhw/EDID](https://github.com/linuxhw/EDID), providing 140,000+ display profiles in two formats.
+Datasets built from [linuxhw](https://github.com/linuxhw) repositories. Currently features 140,000+ EDID display profiles from [linuxhw/EDID](https://github.com/linuxhw/EDID) in two formats.
 
 ## Data Formats
 
+### RoaringBuckets
+
+A compact binary format optimized for web applications and embedded use.
+
+**Key advantages:**
+- **Zero dependencies** - Pure binary format, no database or runtime required
+- **Partial loading** - Fetch only the buckets you need (256 files, ~120KB each)
+- **Browser-ready** - Works with `fetch()` + `ArrayBuffer`, no WASM needed
+- **Multi-dimensional search** - Roaring bitmaps enable fast filtering by vendor, model, resolution
+- **CDN-friendly** - Static files with long cache lifetimes
+- **Offline capable** - Cache locally for offline use
+
+| Feature | Details |
+|---------|---------|
+| Lookup | O(1) hash + binary search |
+| Size | ~31 MB total |
+| Per-bucket | ~120 KB average |
+| Browser support | All modern browsers |
+
+[Format specification](docs/ROARING_BUCKETS.md) | [Example: linuxhw-browser](https://github.com/lokkju/linuxhw-browser)
+
 ### DuckLake
 
-A versioned data lake with full SQL query capabilities.
+A versioned data lake with full SQL query capabilities via DuckDB.
 
 **Best for:** Data analysis, exploration, custom queries, research
 
@@ -14,11 +35,11 @@ A versioned data lake with full SQL query capabilities.
 |---------|---------|
 | Query language | Full SQL via DuckDB |
 | Size | ~150 MB |
-| Updates | Incremental, versioned, time-travel |
 | Schema | 19 columns with rich metadata |
+| Versioning | Time-travel, incremental updates |
 
 ```sql
--- Remote access example
+-- Remote access
 INSTALL ducklake; LOAD ducklake;
 
 ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/edid.ducklake' AS edid (
@@ -26,65 +47,47 @@ ATTACH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data/edid.ducklake' 
     DATA_PATH 'https://github.com/lokkju/linuxhw-datasets/raw/main/data'
 );
 
-SELECT vendor, model, width_px, height_px, manufacture_year
+-- Find Dell monitors by resolution
+SELECT path_vendor, product_name, width_px, height_px, manufacture_year
 FROM edid.edids
-WHERE vendor = 'Dell'
+WHERE path_vendor = 'Dell'
 ORDER BY manufacture_year DESC
 LIMIT 10;
+
+-- Time-travel: see what changed between versions
+SELECT * FROM ducklake_snapshots('edid');  -- List all versions
+
+-- Query a previous version
+SELECT COUNT(*) FROM edid.edids AT VERSION 1;
+
+-- Compare versions to see new entries
+SELECT COUNT(*) as new_entries
+FROM edid.edids
+WHERE linuxhw_id NOT IN (SELECT linuxhw_id FROM edid.edids AT VERSION 1);
 ```
 
 [Full documentation](docs/DUCKLAKE.md)
 
-### RoaringBuckets
-
-A compact binary format for web and embedded applications.
-
-**Best for:** Web apps, fast lookups, offline use, low memory
-
-| Feature | Details |
-|---------|---------|
-| Lookup | O(1) hash + binary search |
-| Size | ~31 MB |
-| Dependencies | None (pure binary) |
-| Browser support | Yes, via fetch + ArrayBuffer |
-
-[Format specification](docs/ROARING_BUCKETS.md)
-
 ## Quick Start
-
-### Clone and Setup
 
 ```bash
 git clone --recursive https://github.com/lokkju/linuxhw-datasets
 cd linuxhw-datasets
 uv sync
-```
 
-### Update Dataset
-
-```bash
-# Check for upstream updates and re-ingest if changes found
+# Check for upstream updates and re-ingest
 uv run edid-build update
 
-# Force full re-ingest
-uv run edid-build update --force
-```
-
-### Generate RoaringBuckets
-
-```bash
+# Generate RoaringBuckets files
 uv run edid-build generate
-```
 
-### View Statistics
-
-```bash
+# View statistics
 uv run edid-build stats
 ```
 
 ## Related Projects
 
-- **[linuxhw-browser](https://github.com/lokkju/linuxhw-browser)** - Web-based EDID browser using RoaringBuckets format
+- **[linuxhw-browser](https://github.com/lokkju/linuxhw-browser)** - Web-based EDID browser using RoaringBuckets
 - **[linuxhw/EDID](https://github.com/linuxhw/EDID)** - Original EDID collection from Linux hardware probes
 
 ## Project Structure
