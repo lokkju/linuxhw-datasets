@@ -206,10 +206,12 @@ def version(data_dir: Path):
 
     if versions.get("versions"):
         latest = versions["versions"][0]
-        click.echo(f"  Date:     {latest.get('date', 'unknown')}")
-        click.echo(f"  Upstream: {latest.get('upstream', 'unknown')}")
-        click.echo(f"  Count:    {latest.get('count', 0):,} EDIDs")
-        click.echo(f"  Built:    {latest.get('ts', 'unknown')}")
+        build_date = latest.get("build_date", latest.get("date", "unknown"))
+        upstream_commit = latest.get("upstream_commit", latest.get("upstream", "unknown"))
+        upstream_date = latest.get("upstream_date", latest.get("date", "unknown"))
+        click.echo(f"  Build date:    {build_date}")
+        click.echo(f"  Upstream:      {upstream_commit} ({upstream_date})")
+        click.echo(f"  Count:         {latest.get('count', 0):,} EDIDs")
 
 
 @main.command()

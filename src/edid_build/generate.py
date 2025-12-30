@@ -158,7 +158,7 @@ def generate_compact_files(
     if upstream_path:
         upstream_info = get_upstream_info(upstream_path)
         if upstream_info["commit"] != "unknown":
-            data_version = compute_data_version(upstream_info["date"], upstream_info["commit"])
+            data_version = compute_data_version(upstream_info["commit"])
             data_version_str = data_version.version
 
     # Try to get version and upstream info from versions.json if not computed
@@ -173,8 +173,8 @@ def generate_compact_files(
         if not upstream_info and versions_data.get("versions"):
             latest = versions_data["versions"][0]
             upstream_info = {
-                "commit": latest.get("upstream", "unknown"),
-                "date": latest.get("date", "unknown"),
+                "commit": latest.get("upstream_commit", latest.get("upstream", "unknown")),
+                "date": latest.get("upstream_date", latest.get("date", "unknown")),
             }
 
     # Write manifest

@@ -27,25 +27,30 @@ from .parser import parse_edid_file, validate_edid_checksum
 
 
 class DataVersion(NamedTuple):
-    """Data version info combining upstream date and commit."""
+    """Data version info combining build date and upstream commit."""
 
-    version: str  # e.g., "v2025.01.06-cc83e52221a9"
-    date: str  # e.g., "2025-01-06"
-    commit: str  # e.g., "cc83e52221a9"
+    version: str  # e.g., "v2025.12.30-cc83e52221a9"
+    build_date: str  # e.g., "2025-12-30" (our release date)
+    commit: str  # e.g., "cc83e52221a9" (upstream commit)
 
 
-def compute_data_version(date: str, commit: str) -> DataVersion:
-    """Compute data version string from upstream date and commit.
+def compute_data_version(commit: str, build_date: str | None = None) -> DataVersion:
+    """Compute data version string from build date and upstream commit.
 
     Format: v{YYYY}.{MM}.{DD}-{commit12}
-    Example: v2025.01.06-cc83e52221a9
+    Example: v2025.12.30-cc83e52221a9
+
+    Uses current date if build_date not provided.
     """
     # Ensure commit is 12 chars
     commit_short = commit[:12]
+    # Use current date if not provided
+    if build_date is None:
+        build_date = datetime.now().strftime("%Y-%m-%d")
     # Convert date format YYYY-MM-DD to YYYY.MM.DD
-    date_dotted = date.replace("-", ".")
+    date_dotted = build_date.replace("-", ".")
     version = f"v{date_dotted}-{commit_short}"
-    return DataVersion(version=version, date=date, commit=commit_short)
+    return DataVersion(version=version, build_date=build_date, commit=commit_short)
 
 
 # Schema for EDID parquet files
@@ -171,7 +176,7 @@ def update_versions_json(
 
     Returns the computed DataVersion for use by callers.
     """
-    data_version = compute_data_version(upstream_date, upstream_commit)
+    data_version = compute_data_version(upstream_commit)
     versions = {"current": data_version.version, "versions": []}
 
     if versions_path.exists():
@@ -181,8 +186,9 @@ def update_versions_json(
     # Add new version entry
     new_version = {
         "version": data_version.version,
-        "upstream": data_version.commit,
-        "date": data_version.date,
+        "upstream_commit": data_version.commit,
+        "upstream_date": upstream_date,
+        "build_date": data_version.build_date,
         "ts": datetime.now(timezone.utc).isoformat(),
         "count": row_count,
     }
