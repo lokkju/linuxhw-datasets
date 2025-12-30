@@ -17,7 +17,7 @@ def main():
     "-i",
     "input_path",
     type=click.Path(exists=True, path_type=Path),
-    required=True,
+    default=Path("upstream/EDID"),
     help="Path to linuxhw/EDID repository",
 )
 @click.option(
