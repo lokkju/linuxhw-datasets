@@ -154,11 +154,28 @@ def generate_compact_files(
 
     # Get upstream info if path provided
     upstream_info = None
-    data_version = None
+    data_version_str = None
     if upstream_path:
         upstream_info = get_upstream_info(upstream_path)
         if upstream_info["commit"] != "unknown":
             data_version = compute_data_version(upstream_info["date"], upstream_info["commit"])
+            data_version_str = data_version.version
+
+    # Try to get version and upstream info from versions.json if not computed
+    versions_path = db_path.parent / "versions.json"
+    if versions_path.exists():
+        with open(versions_path) as f:
+            versions_data = json.load(f)
+        # Get data_version from versions.json if not already set
+        if not data_version_str and versions_data.get("current"):
+            data_version_str = versions_data["current"]
+        # Get upstream info from versions.json if not already set
+        if not upstream_info and versions_data.get("versions"):
+            latest = versions_data["versions"][0]
+            upstream_info = {
+                "commit": latest.get("upstream", "unknown"),
+                "date": latest.get("date", "unknown"),
+            }
 
     # Write manifest
     manifest = {
@@ -176,8 +193,8 @@ def generate_compact_files(
             "paths": path_stats,
         },
     }
-    if data_version:
-        manifest["data_version"] = data_version.version
+    if data_version_str:
+        manifest["data_version"] = data_version_str
     if upstream_info:
         manifest["upstream"] = upstream_info
 
