@@ -12,6 +12,7 @@
 #   --check-only   Only check for updates, don't build
 #   --force        Force rebuild even if no upstream changes
 #   --no-commit    Skip git commit (for testing)
+#   --publish      Upload to R2 after creating archives
 #   -h, --help     Show this help message
 #
 
@@ -24,6 +25,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CHECK_ONLY=false
 FORCE=false
 NO_COMMIT=false
+PUBLISH=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -67,6 +69,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-commit)
             NO_COMMIT=true
+            shift
+            ;;
+        --publish)
+            PUBLISH=true
             shift
             ;;
         -h|--help)
@@ -238,3 +244,10 @@ cat <<EOF
     '$DUCKLAKE_ARCHIVE' \\
     '$ROARING_ARCHIVE'
 EOF
+
+# Publish to R2 if requested
+if [[ "$PUBLISH" == "true" ]]; then
+    echo ""
+    info "Publishing to R2..."
+    "$SCRIPT_DIR/publish-r2.sh"
+fi

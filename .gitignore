@@ -27,6 +27,10 @@ wheels/
 venv/
 ENV/
 
+# Environment files (credentials)
+.env
+.env.local
+
 # IDE
 .idea/
 .vscode/
