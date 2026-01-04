@@ -202,16 +202,18 @@ def version(data_dir: Path):
         versions = json.load(f)
 
     current = versions.get("current", "unknown")
-    click.echo(f"Data version: {current}")
+    format_ver = versions.get("format_version", "v1")
+    click.echo(f"Data version:   {current}")
+    click.echo(f"Format version: {format_ver}")
 
     if versions.get("versions"):
         latest = versions["versions"][0]
         build_date = latest.get("build_date", latest.get("date", "unknown"))
         upstream_commit = latest.get("upstream_commit", latest.get("upstream", "unknown"))
         upstream_date = latest.get("upstream_date", latest.get("date", "unknown"))
-        click.echo(f"  Build date:    {build_date}")
-        click.echo(f"  Upstream:      {upstream_commit} ({upstream_date})")
-        click.echo(f"  Count:         {latest.get('count', 0):,} EDIDs")
+        click.echo(f"  Build date:   {build_date}")
+        click.echo(f"  Upstream:     {upstream_commit} ({upstream_date})")
+        click.echo(f"  Count:        {latest.get('count', 0):,} EDIDs")
 
 
 @main.command()

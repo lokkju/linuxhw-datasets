@@ -1,4 +1,5 @@
 {
+  "format_version": "v1",
   "version": 9,
   "bucket_format": 4,
   "total_entries": 141740,
@@ -261,7 +262,7 @@
     551,
     557
   ],
-  "built_at": "2025-12-30",
+  "built_at": "2026-01-04",
   "indexes": {
     "vendors": {
       "count": 572,
@@ -294,7 +295,7 @@
       "bitmaps_bytes": 797616
     }
   },
-  "data_version": "v2025.12.30-cc83e52221a9",
+  "data_version": "2026.01.03-cc83e52221a9",
   "upstream": {
     "commit": "cc83e52221a9",
     "date": "2025-01-06"

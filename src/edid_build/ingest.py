@@ -29,7 +29,7 @@ from .parser import parse_edid_file, validate_edid_checksum
 class DataVersion(NamedTuple):
     """Data version info combining build date and upstream commit."""
 
-    version: str  # e.g., "v2025.12.30-cc83e52221a9"
+    version: str  # e.g., "2025.12.30-cc83e52221a9" (no 'v' prefix)
     build_date: str  # e.g., "2025-12-30" (our release date)
     commit: str  # e.g., "cc83e52221a9" (upstream commit)
 
@@ -37,10 +37,11 @@ class DataVersion(NamedTuple):
 def compute_data_version(commit: str, build_date: str | None = None) -> DataVersion:
     """Compute data version string from build date and upstream commit.
 
-    Format: v{YYYY}.{MM}.{DD}-{commit12}
-    Example: v2025.12.30-cc83e52221a9
+    Format: {YYYY}.{MM}.{DD}-{commit12}
+    Example: 2025.12.30-cc83e52221a9
 
     Uses current date if build_date not provided.
+    Note: Version string does NOT include 'v' prefix - add 'v' when needed for tags.
     """
     # Ensure commit is 12 chars
     commit_short = commit[:12]
@@ -49,7 +50,7 @@ def compute_data_version(commit: str, build_date: str | None = None) -> DataVers
         build_date = datetime.now().strftime("%Y-%m-%d")
     # Convert date format YYYY-MM-DD to YYYY.MM.DD
     date_dotted = build_date.replace("-", ".")
-    version = f"v{date_dotted}-{commit_short}"
+    version = f"{date_dotted}-{commit_short}"
     return DataVersion(version=version, build_date=build_date, commit=commit_short)
 
 
@@ -171,13 +172,14 @@ def update_versions_json(
     upstream_commit: str,
     upstream_date: str,
     row_count: int,
+    format_version: str = "v1",
 ) -> DataVersion:
     """Update versions.json with new version entry.
 
     Returns the computed DataVersion for use by callers.
     """
     data_version = compute_data_version(upstream_commit)
-    versions = {"current": data_version.version, "versions": []}
+    versions = {"current": data_version.version, "format_version": format_version, "versions": []}
 
     if versions_path.exists():
         with open(versions_path) as f:
@@ -193,8 +195,9 @@ def update_versions_json(
         "count": row_count,
     }
 
-    # Update current and prepend new version
+    # Update current, format_version, and prepend new version
     versions["current"] = data_version.version
+    versions["format_version"] = format_version
     versions["versions"].insert(0, new_version)
 
     with open(versions_path, "w") as f:

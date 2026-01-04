@@ -154,18 +154,24 @@ if [[ ! -f "$VERSIONS_FILE" ]]; then
     die "versions.json not found at $VERSIONS_FILE"
 fi
 
-VERSION=$(jq -r '.current' "$VERSIONS_FILE")
+DATA_VERSION=$(jq -r '.current' "$VERSIONS_FILE")
+FORMAT_VERSION=$(jq -r '.format_version // "v1"' "$VERSIONS_FILE")
 COUNT=$(jq -r '.versions[0].count' "$VERSIONS_FILE")
 UPSTREAM_COMMIT=$(jq -r '.versions[0].upstream_commit' "$VERSIONS_FILE")
 UPSTREAM_DATE=$(jq -r '.versions[0].upstream_date' "$VERSIONS_FILE")
 
-info "Version: $VERSION"
-info "Count: $COUNT EDIDs"
+# Git tag uses 'v' prefix
+TAG="v${DATA_VERSION}"
+
+info "Data version:   $DATA_VERSION"
+info "Format version: $FORMAT_VERSION"
+info "Git tag:        $TAG"
+info "Count:          $COUNT EDIDs"
 
 # Create dist directory and archives
 mkdir -p "$ROOT_DIR/dist"
-DUCKLAKE_ARCHIVE="dist/linuxhw-edid-ducklake-${VERSION}.tar.gz"
-ROARING_ARCHIVE="dist/linuxhw-edid-roaringbuckets-${VERSION}.tar.gz"
+DUCKLAKE_ARCHIVE="dist/linuxhw-edid-ducklake-${TAG}.tar.gz"
+ROARING_ARCHIVE="dist/linuxhw-edid-roaringbuckets-${TAG}.tar.gz"
 
 echo ""
 info "Creating archives..."
@@ -185,17 +191,21 @@ else
     echo ""
     info "Committing changes..."
     git add upstream/EDID data/
-    git commit -m "data: Update to $VERSION
+    git commit -m "data: Update to $TAG
 
 Upstream: $UPSTREAM_COMMIT ($UPSTREAM_DATE)
 Count: $COUNT EDIDs"
-    success "Committed: data: Update to $VERSION"
+    success "Committed: data: Update to $TAG"
 fi
 
 # Generate release notes
-NOTES="## EDID Dataset $VERSION
+NOTES="## EDID Dataset $TAG
 
 **$COUNT** unique EDID entries from [linuxhw/EDID](https://github.com/linuxhw/EDID).
+
+### Version Info
+- **Format:** $FORMAT_VERSION
+- **Data:** $DATA_VERSION
 
 ### Upstream
 - Commit: [\`$UPSTREAM_COMMIT\`](https://github.com/linuxhw/EDID/commit/$UPSTREAM_COMMIT)
@@ -210,7 +220,7 @@ See [README](https://github.com/lokkju/linuxhw-datasets#readme) for usage."
 # Print next steps
 echo ""
 echo "========================================"
-success "Release prepared: $VERSION"
+success "Release prepared: $TAG"
 echo "========================================"
 echo ""
 echo "Archives created in dist/"
@@ -222,8 +232,8 @@ echo ""
 echo "  git push"
 echo ""
 cat <<EOF
-  gh release create '$VERSION' \\
-    --title 'EDID Dataset $VERSION' \\
+  gh release create '$TAG' \\
+    --title 'EDID Dataset $TAG' \\
     --notes '$NOTES' \\
     '$DUCKLAKE_ARCHIVE' \\
     '$ROARING_ARCHIVE'

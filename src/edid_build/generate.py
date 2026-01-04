@@ -162,10 +162,13 @@ def generate_compact_files(
             data_version_str = data_version.version
 
     # Try to get version and upstream info from versions.json if not computed
+    format_version = "v1"  # Default format version
     versions_path = db_path.parent / "versions.json"
     if versions_path.exists():
         with open(versions_path) as f:
             versions_data = json.load(f)
+        # Get format_version from versions.json
+        format_version = versions_data.get("format_version", "v1")
         # Get data_version from versions.json if not already set
         if not data_version_str and versions_data.get("current"):
             data_version_str = versions_data["current"]
@@ -179,8 +182,9 @@ def generate_compact_files(
 
     # Write manifest
     manifest = {
-        "version": 9,  # v9: bucket format v4 with per-entry vendor names
-        "bucket_format": 4,  # v4: includes vendor string table per bucket
+        "format_version": format_version,  # Public format version (v1, v2, etc.)
+        "version": 9,  # Internal manifest schema version
+        "bucket_format": 4,  # Internal bucket file format version
         "total_entries": stats["total_entries"],
         "buckets": stats["buckets_written"],
         "bucket_counts": stats["bucket_counts"],
