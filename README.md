@@ -86,14 +86,31 @@ uv run edid-build generate
 uv run edid-build stats
 ```
 
+## Versioning
+
+The dataset uses a three-part versioning scheme:
+
+| Component | Example | Description |
+|-----------|---------|-------------|
+| Format version | `v1` | Binary format version (v1 = current, v2 = future RBLB format) |
+| Data version | `2026.01.03-cc83e52221a9` | Build date + upstream commit hash |
+| Git tag | `v2026.01.03-cc83e52221a9` | Tag with 'v' prefix for releases |
+
+Check current version:
+```bash
+uv run edid-build version
+# Data version:   2026.01.03-cc83e52221a9
+# Format version: v1
+```
+
 ## Updating & Releases
 
 ### Download Pre-built Releases
 
 Pre-built datasets are available as [GitHub Releases](https://github.com/lokkju/linuxhw-datasets/releases):
 
-- `linuxhw-edid-ducklake-{version}.tar.gz` - DuckLake format (~8 MB compressed)
-- `linuxhw-edid-roaringbuckets-{version}.tar.gz` - RoaringBuckets format (~13 MB compressed)
+- `linuxhw-edid-ducklake-v{version}.tar.gz` - DuckLake format (~8 MB compressed)
+- `linuxhw-edid-roaringbuckets-v{version}.tar.gz` - RoaringBuckets format (~13 MB compressed)
 
 ### Manual Update
 
@@ -108,7 +125,10 @@ To update from the latest upstream and create a release:
 
 # Then follow the printed instructions to push and create release
 git push
-gh release create 'v2025.01.15-abc123def456' ...
+gh release create 'v2026.01.03-abc123def456' ...
+
+# Or update and publish to R2 in one step
+./scripts/release.sh --publish
 ```
 
 The release script:
@@ -119,7 +139,28 @@ The release script:
 5. Commits changes locally
 6. Prints commands to push and create GitHub release
 
-Options: `--force` (rebuild even if no changes), `--no-commit` (skip commit)
+Options:
+- `--force` - Rebuild even if no upstream changes
+- `--no-commit` - Skip git commit
+- `--publish` - Upload to R2 after building
+
+### R2 Publishing
+
+To publish datasets to Cloudflare R2:
+
+```bash
+# Configure R2 credentials
+cp .env.example .env
+# Edit .env with your R2 credentials
+
+# Publish current version
+./scripts/publish-r2.sh
+
+# Check what would be uploaded
+./scripts/publish-r2.sh --check
+```
+
+URL structure: `/edid/{format_version}/{data_version}/`
 
 ## Related Projects
 

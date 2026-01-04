@@ -96,6 +96,37 @@ Update complete:
   Deleted:         0
 ```
 
+## Versioning Scheme
+
+The dataset uses three version components:
+
+| Component | Example | Location |
+|-----------|---------|----------|
+| Format version | `v1` | `versions.json`, `manifest.json` |
+| Data version | `2026.01.03-cc83e52221a9` | `versions.json`, `manifest.json` |
+| Git tag | `v2026.01.03-cc83e52221a9` | GitHub releases |
+
+- **Format version**: Public binary format identifier (v1 = current EDIB, v2 = future RBLB)
+- **Data version**: Build date (YYYY.MM.DD) + upstream commit hash (12 chars)
+- **Git tag**: Data version with 'v' prefix
+
+Key files:
+- `data/ducklake/versions.json`: Contains `current`, `format_version`, and version history
+- `data/roaringbuckets/manifest.json`: Contains `format_version`, `data_version`, `upstream`
+
+## R2 Publishing
+
+Datasets are published to Cloudflare R2 with URL structure:
+```
+/edid/{format_version}/{data_version}/ducklake/
+/edid/{format_version}/{data_version}/roaringbuckets/
+/edid/{format_version}/latest  # Marker file with current version
+```
+
+Scripts:
+- `scripts/publish-r2.sh` - Upload to R2
+- `scripts/release.sh --publish` - Build and publish in one step
+
 ## Key Design Decisions
 
 - **DuckLake**: Versioned data lake with time-travel support, parquet storage
@@ -103,6 +134,7 @@ Update complete:
 - **Custom file naming**: `edid_{YYYYMMDD}-{commit}_{batch}.parquet` for chronological sorting
 - **PyArrow + ducklake_add_data_files**: External parquet writing with DuckLake registration
 - **Bucketed storage**: 256 bucket files by MD5 prefix for partial loading
+- **Format versioning**: v1 = current EDIB format, v2 = future RBLB format
 
 ## Git Workflow
 
