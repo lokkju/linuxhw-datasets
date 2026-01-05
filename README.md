@@ -148,11 +148,24 @@ Options:
 
 To publish datasets to Cloudflare R2:
 
-```bash
-# Configure R2 credentials
-cp .env.example .env
-# Edit .env with your R2 credentials
+1. Create an R2 bucket in Cloudflare Dashboard
+2. Create R2 API token: Dashboard → R2 → Manage R2 API Tokens
+3. Configure credentials:
 
+```bash
+cp .env.example .env
+```
+
+Required environment variables:
+| Variable | Description |
+|----------|-------------|
+| `R2_ACCOUNT_ID` | Cloudflare account ID (from dashboard URL) |
+| `R2_ACCESS_KEY_ID` | R2 API access key |
+| `R2_SECRET_ACCESS_KEY` | R2 API secret key |
+| `R2_BUCKET` | Bucket name (default: `linuxhw-datasets`) |
+| `R2_PUBLIC_URL` | Public URL if using R2.dev or custom domain (optional) |
+
+```bash
 # Publish current version
 ./scripts/publish-r2.sh
 
