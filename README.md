@@ -39,9 +39,11 @@ A versioned data lake with full SQL query capabilities via DuckDB.
 | Versioning | Time-travel, incremental updates |
 
 ```sql
--- Remote access (using latest)
+-- Local access (after cloning repo)
 INSTALL ducklake; LOAD ducklake;
+ATTACH 'ducklake:data/ducklake/edid.ducklake' AS edid;
 
+-- Remote access (using latest)
 ATTACH 'https://roaringbuckets.placist.org/datasets/linuxhw/edid/v1/latest/ducklake/edid.ducklake' AS edid (
     TYPE ducklake,
     DATA_PATH 'https://roaringbuckets.placist.org/datasets/linuxhw/edid/v1/latest/ducklake',
