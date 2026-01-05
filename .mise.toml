@@ -1,4 +1,6 @@
 [tools]
+aws = { version = "latest", symlink_bins = "true" }
+awscli = { version = "latest", symlink_bins = "true" }
 fnox = "latest"
 rclone = "latest"
 
