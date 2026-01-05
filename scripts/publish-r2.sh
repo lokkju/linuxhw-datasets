@@ -138,6 +138,7 @@ access_key_id = ${R2_ACCESS_KEY_ID}
 secret_access_key = ${R2_SECRET_ACCESS_KEY}
 endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
 acl = private
+no_check_bucket = true
 EOF
 
 # Rclone command with config
@@ -191,12 +192,8 @@ if [[ "$UPDATE_LATEST" == "true" ]]; then
     echo ""
     info "Updating 'latest' marker..."
 
-    # Create a marker file with the current version
-    LATEST_MARKER=$(mktemp)
-    echo "$DATA_VERSION" > "$LATEST_MARKER"
-
-    $RCLONE copyto "$LATEST_MARKER" "r2:${R2_BUCKET}/${R2_BASE_PATH}/${FORMAT_VERSION}/latest"
-    rm -f "$LATEST_MARKER"
+    # Use rcat to pipe version directly to R2 (avoids temp file issues)
+    echo "$DATA_VERSION" | $RCLONE rcat "r2:${R2_BUCKET}/${R2_BASE_PATH}/${FORMAT_VERSION}/latest"
 
     success "Updated latest -> $DATA_VERSION"
 fi
