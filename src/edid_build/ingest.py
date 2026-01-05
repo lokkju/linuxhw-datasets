@@ -173,12 +173,17 @@ def update_versions_json(
     upstream_date: str,
     row_count: int,
     format_version: str = "v1",
+    build_date: str | None = None,
 ) -> DataVersion:
     """Update versions.json with new version entry.
 
+    Args:
+        build_date: Override build date (YYYY-MM-DD). Defaults to today.
+                    Used for backfill to set historical dates.
+
     Returns the computed DataVersion for use by callers.
     """
-    data_version = compute_data_version(upstream_commit)
+    data_version = compute_data_version(upstream_commit, build_date=build_date)
     versions = {"current": data_version.version, "format_version": format_version, "versions": []}
 
     if versions_path.exists():
@@ -382,6 +387,7 @@ def ingest_edid_repo(
     workers: int | None = None,
     batch_size: int = 3000,
     show_progress: bool = True,
+    build_date: str | None = None,
 ) -> dict:
     """Ingest EDID repository into DuckLake.
 
@@ -392,6 +398,7 @@ def ingest_edid_repo(
         workers: Number of parallel workers (defaults to CPU count)
         batch_size: Rows per Parquet file (controls file size, ~3000 rows ≈ 3MB)
         show_progress: Show progress bars
+        build_date: Override build date (YYYY-MM-DD) for version string. Used for backfill.
     """
     repo_path = Path(repo_path)
     ducklake_path = Path(ducklake_path)
@@ -605,6 +612,7 @@ def ingest_edid_repo(
         upstream_info["commit"],
         upstream_info["date"],
         stats["unique"],
+        build_date=build_date,
     )
 
     if show_progress:
