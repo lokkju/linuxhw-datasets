@@ -105,7 +105,8 @@ fi
 : "${R2_ACCOUNT_ID:?R2_ACCOUNT_ID environment variable is required}"
 : "${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID environment variable is required}"
 : "${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY environment variable is required}"
-R2_BUCKET="${R2_BUCKET:-linuxhw-datasets}"
+R2_BUCKET="${R2_BUCKET:-roaringbuckets}"
+R2_BASE_PATH="${R2_BASE_PATH:-datasets/v1/linuxhw/edid}"
 
 # Get version info
 VERSIONS_FILE="$ROOT_DIR/data/ducklake/versions.json"
@@ -119,10 +120,11 @@ FORMAT_VERSION=$(jq -r '.format_version // "v1"' "$VERSIONS_FILE")
 info "Data version:   $DATA_VERSION"
 info "Format version: $FORMAT_VERSION"
 info "R2 bucket:      $R2_BUCKET"
+info "Base path:      $R2_BASE_PATH"
 
-# Build R2 path
-R2_PATH="edid/${FORMAT_VERSION}/${DATA_VERSION}"
-info "R2 path:        $R2_PATH"
+# Build R2 path: {base_path}/{format_version}/{data_version}
+R2_PATH="${R2_BASE_PATH}/${FORMAT_VERSION}/${DATA_VERSION}"
+info "Full R2 path:   $R2_PATH"
 
 # Configure rclone for R2 (temporary config)
 RCLONE_CONFIG=$(mktemp)
@@ -192,7 +194,7 @@ if [[ "$UPDATE_LATEST" == "true" ]]; then
     LATEST_MARKER=$(mktemp)
     echo "$DATA_VERSION" > "$LATEST_MARKER"
 
-    $RCLONE copyto "$LATEST_MARKER" "r2:${R2_BUCKET}/edid/${FORMAT_VERSION}/latest"
+    $RCLONE copyto "$LATEST_MARKER" "r2:${R2_BUCKET}/${R2_BASE_PATH}/${FORMAT_VERSION}/latest"
     rm -f "$LATEST_MARKER"
 
     success "Updated latest -> $DATA_VERSION"
@@ -213,5 +215,5 @@ if [[ -n "${R2_PUBLIC_URL:-}" ]]; then
     echo "Public URLs:"
     echo "  DuckLake:       ${R2_PUBLIC_URL}/${R2_PATH}/ducklake/"
     echo "  RoaringBuckets: ${R2_PUBLIC_URL}/${R2_PATH}/roaringbuckets/"
-    echo "  Latest:         ${R2_PUBLIC_URL}/edid/${FORMAT_VERSION}/latest"
+    echo "  Latest:         ${R2_PUBLIC_URL}/${R2_BASE_PATH}/${FORMAT_VERSION}/latest"
 fi

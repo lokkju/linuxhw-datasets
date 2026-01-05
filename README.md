@@ -162,8 +162,9 @@ Required environment variables:
 | `R2_ACCOUNT_ID` | Cloudflare account ID (from dashboard URL) |
 | `R2_ACCESS_KEY_ID` | R2 API access key |
 | `R2_SECRET_ACCESS_KEY` | R2 API secret key |
-| `R2_BUCKET` | Bucket name (default: `linuxhw-datasets`) |
-| `R2_PUBLIC_URL` | Public URL if using R2.dev or custom domain (optional) |
+| `R2_BUCKET` | Bucket name (default: `roaringbuckets`) |
+| `R2_BASE_PATH` | Path prefix in bucket (default: `datasets/v1/linuxhw/edid`) |
+| `R2_PUBLIC_URL` | Public URL for display (optional, e.g., `https://example.com`) |
 
 ```bash
 # Publish current version
@@ -173,7 +174,8 @@ Required environment variables:
 ./scripts/publish-r2.sh --check
 ```
 
-URL structure: `/edid/{format_version}/{data_version}/`
+URL structure: `/{base_path}/{format_version}/{data_version}/`
+Example: `/datasets/v1/linuxhw/edid/v1/2026.01.03-cc83e52221a9/ducklake/`
 
 ## Related Projects
 
