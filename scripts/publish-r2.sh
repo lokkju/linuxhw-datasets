@@ -4,9 +4,9 @@
 #
 # Uploads DuckLake and RoaringBuckets datasets to R2 bucket with versioned paths.
 #
-# URL structure: /edid/{format_version}/{data_version}/
-#   Example: /edid/v1/2026.01.03-cc83e52221a9/ducklake/
-#   Example: /edid/v1/2026.01.03-cc83e52221a9/roaringbuckets/
+# URL structure: /{base_path}/{format_version}/{data_version}/
+#   Versioned: /datasets/linuxhw/edid/v1/2026.01.05-cc83e52221a9/ducklake/
+#   Latest:    /datasets/linuxhw/edid/v1/latest/ducklake/
 #
 # Usage:
 #   ./scripts/publish-r2.sh [OPTIONS]
@@ -106,7 +106,7 @@ fi
 : "${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID environment variable is required}"
 : "${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY environment variable is required}"
 R2_BUCKET="${R2_BUCKET:-roaringbuckets}"
-R2_BASE_PATH="${R2_BASE_PATH:-datasets/v1/linuxhw/edid}"
+R2_BASE_PATH="${R2_BASE_PATH:-datasets/linuxhw/edid}"
 
 # Get version info
 VERSIONS_FILE="$ROOT_DIR/data/ducklake/versions.json"
@@ -173,27 +173,34 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
     exit 0
 fi
 
-# Upload DuckLake
+# Upload DuckLake to versioned path
 echo ""
-info "Uploading DuckLake..."
+info "Uploading DuckLake to versioned path..."
 $RCLONE sync "$ROOT_DIR/data/ducklake/" "r2:${R2_BUCKET}/${R2_PATH}/ducklake/" \
     --progress \
     --transfers 4
 
-# Upload RoaringBuckets
+# Upload RoaringBuckets to versioned path
 echo ""
-info "Uploading RoaringBuckets..."
+info "Uploading RoaringBuckets to versioned path..."
 $RCLONE sync "$ROOT_DIR/data/roaringbuckets/" "r2:${R2_BUCKET}/${R2_PATH}/roaringbuckets/" \
     --progress \
     --transfers 4
 
-# Update 'latest' marker
+# Also upload to 'latest' path
+LATEST_PATH="${R2_BASE_PATH}/${FORMAT_VERSION}/latest"
 if [[ "$UPDATE_LATEST" == "true" ]]; then
     echo ""
-    info "Updating 'latest' marker..."
+    info "Uploading DuckLake to latest path..."
+    $RCLONE sync "$ROOT_DIR/data/ducklake/" "r2:${R2_BUCKET}/${LATEST_PATH}/ducklake/" \
+        --progress \
+        --transfers 4
 
-    # Use rcat to pipe version directly to R2 (avoids temp file issues)
-    echo "$DATA_VERSION" | $RCLONE rcat "r2:${R2_BUCKET}/${R2_BASE_PATH}/${FORMAT_VERSION}/latest"
+    echo ""
+    info "Uploading RoaringBuckets to latest path..."
+    $RCLONE sync "$ROOT_DIR/data/roaringbuckets/" "r2:${R2_BUCKET}/${LATEST_PATH}/roaringbuckets/" \
+        --progress \
+        --transfers 4
 
     success "Updated latest -> $DATA_VERSION"
 fi
@@ -210,8 +217,13 @@ echo ""
 
 # Print public URL if R2_PUBLIC_URL is set
 if [[ -n "${R2_PUBLIC_URL:-}" ]]; then
-    echo "Public URLs:"
+    echo "Public URLs (versioned):"
     echo "  DuckLake:       ${R2_PUBLIC_URL}/${R2_PATH}/ducklake/"
     echo "  RoaringBuckets: ${R2_PUBLIC_URL}/${R2_PATH}/roaringbuckets/"
-    echo "  Latest:         ${R2_PUBLIC_URL}/${R2_BASE_PATH}/${FORMAT_VERSION}/latest"
+    if [[ "$UPDATE_LATEST" == "true" ]]; then
+        echo ""
+        echo "Public URLs (latest):"
+        echo "  DuckLake:       ${R2_PUBLIC_URL}/${LATEST_PATH}/ducklake/"
+        echo "  RoaringBuckets: ${R2_PUBLIC_URL}/${LATEST_PATH}/roaringbuckets/"
+    fi
 fi

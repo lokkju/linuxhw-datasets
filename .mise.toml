@@ -3,7 +3,7 @@ fnox = "latest"
 rclone = "latest"
 
 [env]
-R2_BASE_PATH = "datasets/v1/linuxhw/edid"
+R2_BASE_PATH = "datasets/linuxhw/edid"
 R2_PUBLIC_URL = "https://roaringbuckets.placist.org/"
 
 R2_ACCOUNT_ID = { age = "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB4d3hUOEIzc1VQTW0yd2NEZlRXc1RwcGxMbGhZU3h0VDR0T1ZxRTFjNlRNCkhidG9vV041ZjlpVVo1WWo4VzV2ektZNDl3QmRQZGxtRlY4Qmozc3hUcDQKLT4gdWlyOnZ7PS1ncmVhc2UgPQoza1NQYW45NzlTV2tYNDRhT0dDK2VtbFBWQ2ZPdjVBdkJBCi0tLSBYY2FSMEorMkMyMDRhdWpxWitTU0pKRHNYeHFXYVQweXdEVjRMUkJFaEFjCgW4Zot4W28/1W3aSRbN6v3kRSbRnMcOhzfbOstWPAT19D393s2d1X6l5jC8H6a+BMs/3QnpIeg0Yl6G57w8rZk" }

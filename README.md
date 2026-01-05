@@ -39,12 +39,12 @@ A versioned data lake with full SQL query capabilities via DuckDB.
 | Versioning | Time-travel, incremental updates |
 
 ```sql
--- Remote access (see latest version at /datasets/v1/linuxhw/edid/v1/latest)
+-- Remote access (using latest)
 INSTALL ducklake; LOAD ducklake;
 
-ATTACH 'https://roaringbuckets.placist.org/datasets/v1/linuxhw/edid/v1/2026.01.05-cc83e52221a9/ducklake/edid.ducklake' AS edid (
+ATTACH 'https://roaringbuckets.placist.org/datasets/linuxhw/edid/v1/latest/ducklake/edid.ducklake' AS edid (
     TYPE ducklake,
-    DATA_PATH 'https://roaringbuckets.placist.org/datasets/v1/linuxhw/edid/v1/2026.01.05-cc83e52221a9/ducklake',
+    DATA_PATH 'https://roaringbuckets.placist.org/datasets/linuxhw/edid/v1/latest/ducklake',
     OVERRIDE_DATA_PATH 1
 );
 
@@ -165,7 +165,7 @@ Required environment variables:
 | `R2_ACCESS_KEY_ID` | R2 API access key |
 | `R2_SECRET_ACCESS_KEY` | R2 API secret key |
 | `R2_BUCKET` | Bucket name (default: `roaringbuckets`) |
-| `R2_BASE_PATH` | Path prefix in bucket (default: `datasets/v1/linuxhw/edid`) |
+| `R2_BASE_PATH` | Path prefix in bucket (default: `datasets/linuxhw/edid`) |
 | `R2_PUBLIC_URL` | Public URL for display (optional, e.g., `https://example.com`) |
 
 ```bash
@@ -177,7 +177,8 @@ Required environment variables:
 ```
 
 URL structure: `/{base_path}/{format_version}/{data_version}/`
-Example: `/datasets/v1/linuxhw/edid/v1/2026.01.03-cc83e52221a9/ducklake/`
+Example: `/datasets/linuxhw/edid/v1/2026.01.05-cc83e52221a9/ducklake/`
+Latest:  `/datasets/linuxhw/edid/v1/latest/ducklake/`
 
 ## Related Projects
 
