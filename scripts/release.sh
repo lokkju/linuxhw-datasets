@@ -223,6 +223,10 @@ NOTES="## EDID Dataset $TAG
 
 See [README](https://github.com/lokkju/linuxhw-datasets#readme) for usage."
 
+# Write release notes to file (avoids escaping issues)
+NOTES_FILE="$ROOT_DIR/dist/RELEASE_NOTES.md"
+echo "$NOTES" > "$NOTES_FILE"
+
 # Print next steps
 echo ""
 echo "========================================"
@@ -232,18 +236,17 @@ echo ""
 echo "Archives created in dist/"
 echo "  - $DUCKLAKE_ARCHIVE ($DUCKLAKE_SIZE)"
 echo "  - $ROARING_ARCHIVE ($ROARING_SIZE)"
+echo "  - dist/RELEASE_NOTES.md"
 echo ""
 echo "To complete the release, run:"
 echo ""
 echo "  git push"
 echo ""
-cat <<EOF
-  gh release create '$TAG' \\
-    --title 'EDID Dataset $TAG' \\
-    --notes '$NOTES' \\
-    '$DUCKLAKE_ARCHIVE' \\
-    '$ROARING_ARCHIVE'
-EOF
+echo "  gh release create '$TAG' \\"
+echo "    --title 'EDID Dataset $TAG' \\"
+echo "    --notes-file dist/RELEASE_NOTES.md \\"
+echo "    '$DUCKLAKE_ARCHIVE' \\"
+echo "    '$ROARING_ARCHIVE'"
 
 # Publish to R2 if requested
 if [[ "$PUBLISH" == "true" ]]; then
