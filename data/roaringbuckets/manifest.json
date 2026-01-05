@@ -2,11 +2,11 @@
   "format_version": "v1",
   "version": 9,
   "bucket_format": 4,
-  "total_entries": 141740,
+  "total_entries": 141748,
   "buckets": 256,
   "bucket_counts": [
     513,
-    526,
+    527,
     537,
     594,
     550,
@@ -124,7 +124,7 @@
     610,
     550,
     556,
-    532,
+    533,
     550,
     564,
     593,
@@ -191,13 +191,13 @@
     523,
     581,
     544,
-    569,
+    570,
     567,
     550,
     555,
     552,
     521,
-    553,
+    554,
     550,
     555,
     588,
@@ -208,10 +208,10 @@
     568,
     556,
     552,
-    542,
+    543,
     593,
     551,
-    525,
+    526,
     548,
     561,
     535,
@@ -239,7 +239,7 @@
     534,
     570,
     548,
-    542,
+    544,
     543,
     513,
     582,
@@ -262,40 +262,40 @@
     551,
     557
   ],
-  "built_at": "2026-01-04",
+  "built_at": "2026-01-05",
   "indexes": {
     "vendors": {
       "count": 572,
-      "total_bytes": 253633,
+      "total_bytes": 253649,
       "strings_bytes": 3031,
-      "bitmaps_bytes": 243722
+      "bitmaps_bytes": 243738
     },
     "products": {
-      "count": 12997,
-      "total_bytes": 801203,
-      "strings_bytes": 99259,
-      "bitmaps_bytes": 545964
+      "count": 12998,
+      "total_bytes": 801249,
+      "strings_bytes": 99269,
+      "bitmaps_bytes": 545988
     },
     "codes": {
       "count": 21604,
-      "total_bytes": 1154616,
+      "total_bytes": 1154634,
       "strings_bytes": 157390,
-      "bitmaps_bytes": 737962
+      "bitmaps_bytes": 737980
     },
     "sizes": {
       "count": 139,
-      "total_bytes": 227712,
+      "total_bytes": 227720,
       "strings_bytes": 544,
-      "bitmaps_bytes": 225484
+      "bitmaps_bytes": 225492
     },
     "paths": {
       "count": 24819,
-      "total_bytes": 1651603,
-      "strings_bytes": 556143,
-      "bitmaps_bytes": 797616
+      "total_bytes": 1651669,
+      "strings_bytes": 556187,
+      "bitmaps_bytes": 797638
     }
   },
-  "data_version": "2026.01.03-cc83e52221a9",
+  "data_version": "2026.01.05-cc83e52221a9",
   "upstream": {
     "commit": "cc83e52221a9",
     "date": "2025-01-06"

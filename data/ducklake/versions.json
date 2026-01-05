@@ -1,14 +1,134 @@
 {
-  "current": "2026.01.03-cc83e52221a9",
+  "current": "2026.01.05-cc83e52221a9",
   "format_version": "v1",
   "versions": [
     {
-      "version": "2026.01.03-cc83e52221a9",
+      "version": "2026.01.05-cc83e52221a9",
       "upstream_commit": "cc83e52221a9",
       "upstream_date": "2025-01-06",
-      "build_date": "2026-01-03",
-      "ts": "2026-01-04T07:05:19.118731+00:00",
-      "count": 141740
+      "build_date": "2026-01-05",
+      "ts": "2026-01-05T18:57:06.761939+00:00",
+      "count": 141748
+    },
+    {
+      "version": "2025.01.06-19e452a7225a",
+      "upstream_commit": "19e452a7225a",
+      "upstream_date": "2025-01-06",
+      "build_date": "2025-01-06",
+      "ts": "2026-01-05T18:51:21.599192+00:00",
+      "count": 100095
+    },
+    {
+      "version": "2023.05.08-a4a460983d69",
+      "upstream_commit": "a4a460983d69",
+      "upstream_date": "2023-05-08",
+      "build_date": "2023-05-08",
+      "ts": "2026-01-05T18:51:15.181932+00:00",
+      "count": 99095
+    },
+    {
+      "version": "2023.01.13-f00ab7cfa49e",
+      "upstream_commit": "f00ab7cfa49e",
+      "upstream_date": "2023-01-13",
+      "build_date": "2023-01-13",
+      "ts": "2026-01-05T18:51:04.124679+00:00",
+      "count": 82790
+    },
+    {
+      "version": "2022.09.26-798ea9a32d8c",
+      "upstream_commit": "798ea9a32d8c",
+      "upstream_date": "2022-09-26",
+      "build_date": "2022-09-26",
+      "ts": "2026-01-05T18:50:57.497603+00:00",
+      "count": 70496
+    },
+    {
+      "version": "2022.03.16-66634b3cf79c",
+      "upstream_commit": "66634b3cf79c",
+      "upstream_date": "2022-03-16",
+      "build_date": "2022-03-16",
+      "ts": "2026-01-05T18:50:50.767094+00:00",
+      "count": 70496
+    },
+    {
+      "version": "2021.12.14-7cb958eb635d",
+      "upstream_commit": "7cb958eb635d",
+      "upstream_date": "2021-12-14",
+      "build_date": "2021-12-14",
+      "ts": "2026-01-05T18:50:45.748559+00:00",
+      "count": 60689
+    },
+    {
+      "version": "2021.10.05-b035dbf5cd70",
+      "upstream_commit": "b035dbf5cd70",
+      "upstream_date": "2021-10-05",
+      "build_date": "2021-10-05",
+      "ts": "2026-01-05T18:50:38.555087+00:00",
+      "count": 52155
+    },
+    {
+      "version": "2021.09.17-a8e2b6e2bb13",
+      "upstream_commit": "a8e2b6e2bb13",
+      "upstream_date": "2021-09-17",
+      "build_date": "2021-09-17",
+      "ts": "2026-01-05T18:50:35.596310+00:00",
+      "count": 52155
+    },
+    {
+      "version": "2021.06.09-1676fe678962",
+      "upstream_commit": "1676fe678962",
+      "upstream_date": "2021-06-09",
+      "build_date": "2021-06-09",
+      "ts": "2026-01-05T18:50:32.643069+00:00",
+      "count": 52155
+    },
+    {
+      "version": "2021.05.15-105a77c23de7",
+      "upstream_commit": "105a77c23de7",
+      "upstream_date": "2021-05-15",
+      "build_date": "2021-05-15",
+      "ts": "2026-01-05T18:50:29.563787+00:00",
+      "count": 52155
+    },
+    {
+      "version": "2021.01.07-bc753b441f9b",
+      "upstream_commit": "bc753b441f9b",
+      "upstream_date": "2021-01-07",
+      "build_date": "2021-01-07",
+      "ts": "2026-01-05T18:50:24.977615+00:00",
+      "count": 38237
+    },
+    {
+      "version": "2020.10.18-f8bb9fac4519",
+      "upstream_commit": "f8bb9fac4519",
+      "upstream_date": "2020-10-18",
+      "build_date": "2020-10-18",
+      "ts": "2026-01-05T18:50:22.156776+00:00",
+      "count": 29600
+    },
+    {
+      "version": "2020.06.13-fbd526b53071",
+      "upstream_commit": "fbd526b53071",
+      "upstream_date": "2020-06-13",
+      "build_date": "2020-06-13",
+      "ts": "2026-01-05T18:50:18.815172+00:00",
+      "count": 23627
+    },
+    {
+      "version": "2020.04.02-c66558feab9d",
+      "upstream_commit": "c66558feab9d",
+      "upstream_date": "2020-04-02",
+      "build_date": "2020-04-02",
+      "ts": "2026-01-05T18:50:17.248059+00:00",
+      "count": 23627
+    },
+    {
+      "version": "2020.03.06-d7c463286f83",
+      "upstream_commit": "d7c463286f83",
+      "upstream_date": "2020-03-06",
+      "build_date": "2020-03-06",
+      "ts": "2026-01-05T18:50:14.370730+00:00",
+      "count": 0
     }
   ]
 }
