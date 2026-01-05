@@ -13,6 +13,7 @@
 #   --interval N     Process every Nth commit (default: 1 = all commits)
 #   --monthly        Only process one commit per month (overrides --interval)
 #   --dry-run        Show commits that would be processed, don't ingest
+#   --clean          Remove existing DuckLake data before starting
 #   --limit N        Process at most N commits
 #   -h, --help       Show this help message
 #
@@ -34,6 +35,7 @@ INTERVAL=1
 MONTHLY=false
 DRY_RUN=false
 LIMIT=0
+CLEAN=false
 
 # Colors
 RED='\033[0;31m'
@@ -48,7 +50,7 @@ success() { echo -e "${GREEN}$1${NC}"; }
 warn() { echo -e "${YELLOW}$1${NC}"; }
 
 usage() {
-    head -n 24 "$0" | tail -n 21 | sed 's/^# //' | sed 's/^#//'
+    head -n 25 "$0" | tail -n 22 | sed 's/^# //' | sed 's/^#//'
     exit 0
 }
 
@@ -71,6 +73,10 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --clean)
+            CLEAN=true
+            shift
+            ;;
         --limit)
             LIMIT="$2"
             shift 2
@@ -89,6 +95,25 @@ cd "$ROOT_DIR"
 
 if [[ ! -d "$EDID_DIR/.git" ]] && [[ ! -f "$EDID_DIR/.git" ]]; then
     die "upstream/EDID submodule not found. Run: git submodule update --init"
+fi
+
+# Check for existing DuckLake data
+DUCKLAKE_DIR="$ROOT_DIR/data/ducklake"
+if [[ -d "$DUCKLAKE_DIR" ]] && [[ -f "$DUCKLAKE_DIR/edid.ducklake" ]]; then
+    if [[ "$CLEAN" == "true" ]]; then
+        warn "Removing existing DuckLake data..."
+        rm -rf "$DUCKLAKE_DIR"
+    else
+        die "DuckLake data already exists at $DUCKLAKE_DIR
+
+Backfill should start with a clean database to maintain chronological version order.
+
+Options:
+  1. Use --clean flag to automatically remove existing data
+  2. Manually delete: rm -rf data/ducklake/
+
+After backfill completes, run 'uv run edid-build ingest' to add the latest version."
+    fi
 fi
 
 # Get list of commits (oldest first)
