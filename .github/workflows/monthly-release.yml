@@ -5,7 +5,11 @@ on:
     # Run on the 1st of each month at 00:00 UTC
     - cron: '0 0 1 * *'
   workflow_dispatch:
-    # Allow manual trigger
+    inputs:
+      force:
+        description: 'Force rebuild even without upstream changes'
+        type: boolean
+        default: false
 
 jobs:
   release:
@@ -39,7 +43,12 @@ jobs:
           CURRENT=$(git -C upstream/EDID rev-parse HEAD)
           REMOTE=$(git -C upstream/EDID rev-parse origin/master)
 
-          if [ "$CURRENT" = "$REMOTE" ]; then
+          FORCE="${{ inputs.force }}"
+
+          if [ "$FORCE" = "true" ]; then
+            echo "Force rebuild requested"
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+          elif [ "$CURRENT" = "$REMOTE" ]; then
             echo "No updates available"
             echo "has_updates=false" >> $GITHUB_OUTPUT
           else
