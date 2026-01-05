@@ -59,12 +59,12 @@ LIMIT 10;
 SELECT * FROM ducklake_snapshots('edid');  -- List all versions
 
 -- Query a previous version
-SELECT COUNT(*) FROM edid.edids AT VERSION 1;
+SELECT COUNT(*) FROM edid.edids AT (VERSION => 1);
 
 -- Compare versions to see new entries
 SELECT COUNT(*) as new_entries
 FROM edid.edids
-WHERE linuxhw_id NOT IN (SELECT linuxhw_id FROM edid.edids AT VERSION 1);
+WHERE linuxhw_id NOT IN (SELECT linuxhw_id FROM edid.edids AT (VERSION => 1));
 ```
 
 [Full documentation](docs/DUCKLAKE.md)
