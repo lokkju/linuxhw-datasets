@@ -205,6 +205,157 @@ if [[ "$UPDATE_LATEST" == "true" ]]; then
     success "Updated latest -> $DATA_VERSION"
 fi
 
+# Generate and upload index.html files
+echo ""
+info "Generating index pages..."
+
+# Get additional metadata
+COUNT=$(jq -r '.versions[0].count' "$VERSIONS_FILE")
+UPSTREAM_COMMIT=$(jq -r '.versions[0].upstream_commit' "$VERSIONS_FILE")
+UPSTREAM_DATE=$(jq -r '.versions[0].upstream_date' "$VERSIONS_FILE")
+BUILD_DATE=$(jq -r '.versions[0].build_date' "$VERSIONS_FILE")
+
+# Create temp directory for index files
+INDEX_DIR=$(mktemp -d)
+trap 'rm -f "$RCLONE_CONFIG"; rm -rf "$INDEX_DIR"' EXIT
+
+# Version-level index (for both versioned and latest paths)
+cat > "$INDEX_DIR/version-index.html" << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinuxHW EDID Dataset - ${DATA_VERSION}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { color: #333; }
+        .meta { background: #f5f5f5; padding: 1rem; border-radius: 8px; margin: 1rem 0; }
+        .meta dt { font-weight: bold; color: #666; }
+        .meta dd { margin: 0 0 0.5rem 0; }
+        .formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+        .format { border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; }
+        .format h3 { margin-top: 0; }
+        .format a { color: #0066cc; }
+        code { background: #f0f0f0; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>LinuxHW EDID Dataset</h1>
+    <p>Version <strong>${DATA_VERSION}</strong></p>
+
+    <dl class="meta">
+        <dt>EDID Count</dt>
+        <dd>${COUNT} unique entries</dd>
+        <dt>Upstream Commit</dt>
+        <dd><a href="https://github.com/linuxhw/EDID/commit/${UPSTREAM_COMMIT}">${UPSTREAM_COMMIT}</a></dd>
+        <dt>Upstream Date</dt>
+        <dd>${UPSTREAM_DATE}</dd>
+        <dt>Build Date</dt>
+        <dd>${BUILD_DATE}</dd>
+        <dt>Format Version</dt>
+        <dd>${FORMAT_VERSION}</dd>
+    </dl>
+
+    <div class="formats">
+        <div class="format">
+            <h3>DuckLake</h3>
+            <p>SQL queries via DuckDB with time-travel support.</p>
+            <p><a href="ducklake/">Browse files</a></p>
+            <pre><code>ATTACH 'ducklake:edid.ducklake' AS edid;</code></pre>
+        </div>
+        <div class="format">
+            <h3>RoaringBuckets</h3>
+            <p>Compact binary format for fast lookups.</p>
+            <p><a href="roaringbuckets/">Browse files</a></p>
+        </div>
+    </div>
+
+    <p><a href="../">← Back to version list</a></p>
+    <p><small>Source: <a href="https://github.com/lokkju/linuxhw-datasets">github.com/lokkju/linuxhw-datasets</a></small></p>
+</body>
+</html>
+EOF
+
+# Format-level index (lists versions)
+cat > "$INDEX_DIR/format-index.html" << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinuxHW EDID Dataset - ${FORMAT_VERSION}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { color: #333; }
+        .version { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
+        .version.latest { border-color: #0066cc; background: #f0f7ff; }
+        .version a { color: #0066cc; font-weight: bold; }
+        .version .meta { color: #666; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>LinuxHW EDID Dataset</h1>
+    <p>Format: <strong>${FORMAT_VERSION}</strong></p>
+
+    <h2>Available Versions</h2>
+
+    <div class="version latest">
+        <a href="latest/">latest</a> → ${DATA_VERSION}
+        <div class="meta">${COUNT} entries | Updated ${BUILD_DATE}</div>
+    </div>
+
+    <div class="version">
+        <a href="${DATA_VERSION}/">${DATA_VERSION}</a>
+        <div class="meta">${COUNT} entries | ${UPSTREAM_DATE}</div>
+    </div>
+
+    <p><a href="../">← Back</a></p>
+    <p><small>Source: <a href="https://github.com/lokkju/linuxhw-datasets">github.com/lokkju/linuxhw-datasets</a></small></p>
+</body>
+</html>
+EOF
+
+# Base-level index
+cat > "$INDEX_DIR/base-index.html" << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinuxHW EDID Dataset</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { color: #333; }
+        .format { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
+        .format a { color: #0066cc; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>LinuxHW EDID Dataset</h1>
+    <p>Display identification data from <a href="https://github.com/linuxhw/EDID">linuxhw/EDID</a>.</p>
+
+    <h2>Format Versions</h2>
+    <div class="format">
+        <a href="v1/">v1</a> - Current format (DuckLake + RoaringBuckets)
+    </div>
+
+    <p><small>Source: <a href="https://github.com/lokkju/linuxhw-datasets">github.com/lokkju/linuxhw-datasets</a></small></p>
+</body>
+</html>
+EOF
+
+# Upload index files
+$RCLONE copyto "$INDEX_DIR/version-index.html" "r2:${R2_BUCKET}/${R2_PATH}/index.html"
+$RCLONE copyto "$INDEX_DIR/format-index.html" "r2:${R2_BUCKET}/${R2_BASE_PATH}/${FORMAT_VERSION}/index.html"
+$RCLONE copyto "$INDEX_DIR/base-index.html" "r2:${R2_BUCKET}/${R2_BASE_PATH}/index.html"
+
+if [[ "$UPDATE_LATEST" == "true" ]]; then
+    $RCLONE copyto "$INDEX_DIR/version-index.html" "r2:${R2_BUCKET}/${LATEST_PATH}/index.html"
+fi
+
+success "Index pages uploaded"
+
 # Summary
 echo ""
 echo "========================================"
