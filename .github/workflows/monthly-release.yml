@@ -1,0 +1,135 @@
+name: Monthly Release
+
+on:
+  schedule:
+    # Run on the 1st of each month at 00:00 UTC
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # For creating releases and pushing
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Setup Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check for updates
+        id: check
+        run: |
+          # Fetch latest from upstream
+          git -C upstream/EDID fetch origin
+
+          CURRENT=$(git -C upstream/EDID rev-parse HEAD)
+          REMOTE=$(git -C upstream/EDID rev-parse origin/master)
+
+          if [ "$CURRENT" = "$REMOTE" ]; then
+            echo "No updates available"
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+          else
+            echo "Updates available: $CURRENT -> $REMOTE"
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update and build
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          # Update submodule
+          git -C upstream/EDID checkout origin/master
+
+          # Build datasets
+          uv run edid-build ingest
+          uv run edid-build generate
+
+      - name: Get version info
+        if: steps.check.outputs.has_updates == 'true'
+        id: version
+        run: |
+          DATA_VERSION=$(jq -r '.current' data/ducklake/versions.json)
+          FORMAT_VERSION=$(jq -r '.format_version // "v1"' data/ducklake/versions.json)
+          COUNT=$(jq -r '.versions[0].count' data/ducklake/versions.json)
+          TAG="v${DATA_VERSION}"
+
+          echo "data_version=$DATA_VERSION" >> $GITHUB_OUTPUT
+          echo "format_version=$FORMAT_VERSION" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create archives
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          mkdir -p dist
+          TAG="${{ steps.version.outputs.tag }}"
+          tar -czf "dist/linuxhw-edid-ducklake-${TAG}.tar.gz" -C data ducklake
+          tar -czf "dist/linuxhw-edid-roaringbuckets-${TAG}.tar.gz" -C data roaringbuckets
+
+      - name: Commit changes
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add upstream/EDID data/
+          git commit -m "data: Update to ${{ steps.version.outputs.tag }}
+
+          Count: ${{ steps.version.outputs.count }} EDIDs"
+          git push
+
+      - name: Install rclone
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          curl -O https://downloads.rclone.org/rclone-current-linux-amd64.deb
+          sudo dpkg -i rclone-current-linux-amd64.deb
+
+      - name: Publish to R2
+        if: steps.check.outputs.has_updates == 'true'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PATH: datasets/linuxhw/edid
+        run: ./scripts/publish-r2.sh
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.has_updates == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          COUNT="${{ steps.version.outputs.count }}"
+          FORMAT="${{ steps.version.outputs.format_version }}"
+          DATA="${{ steps.version.outputs.data_version }}"
+
+          gh release create "$TAG" \
+            --title "EDID Dataset $TAG" \
+            --notes "## EDID Dataset $TAG
+
+          **$COUNT** unique EDID entries from [linuxhw/EDID](https://github.com/linuxhw/EDID).
+
+          ### Version Info
+          - **Format:** $FORMAT
+          - **Data:** $DATA
+
+          ### Downloads
+          - **DuckLake**: SQL queries via DuckDB with time-travel
+          - **RoaringBuckets**: Compact binary for fast lookups
+
+          See [README](https://github.com/lokkju/linuxhw-datasets#readme) for usage." \
+            "dist/linuxhw-edid-ducklake-${TAG}.tar.gz" \
+            "dist/linuxhw-edid-roaringbuckets-${TAG}.tar.gz"
