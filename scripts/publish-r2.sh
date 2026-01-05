@@ -163,11 +163,12 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
     echo ""
     info "Would upload to: r2:${R2_BUCKET}/${R2_PATH}/"
     echo ""
-    echo "DuckLake files:"
-    ls -lh "$ROOT_DIR/data/ducklake/"
+    DUCKLAKE_SIZE=$(du -sh "$ROOT_DIR/data/ducklake/" | cut -f1)
+    ROARING_SIZE=$(du -sh "$ROOT_DIR/data/roaringbuckets/" | cut -f1)
+    echo "DuckLake:       $DUCKLAKE_SIZE"
+    echo "RoaringBuckets: $ROARING_SIZE"
     echo ""
-    echo "RoaringBuckets files:"
-    ls -lh "$ROOT_DIR/data/roaringbuckets/"
+    echo "Total: $(du -shc "$ROOT_DIR/data/ducklake/" "$ROOT_DIR/data/roaringbuckets/" 2>/dev/null | grep total | cut -f1)"
     exit 0
 fi
 
