@@ -356,6 +356,27 @@ fi
 
 success "Index pages uploaded"
 
+# Purge Cloudflare cache for /latest/ paths
+if [[ "$UPDATE_LATEST" == "true" ]] && [[ -n "${CF_ZONE_ID:-}" ]] && [[ -n "${CF_API_TOKEN:-}" ]]; then
+    echo ""
+    info "Purging Cloudflare cache for latest paths..."
+
+    PURGE_URL="${R2_PUBLIC_URL%/}/${LATEST_PATH}/"
+
+    PURGE_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+        -H "Authorization: Bearer ${CF_API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "{\"prefixes\":[\"${PURGE_URL}\"]}")
+
+    if echo "$PURGE_RESPONSE" | jq -e '.success' > /dev/null 2>&1; then
+        success "Cache purged for: ${PURGE_URL}"
+    else
+        warn "Cache purge failed: $(echo "$PURGE_RESPONSE" | jq -r '.errors[0].message // "unknown error"')"
+    fi
+elif [[ "$UPDATE_LATEST" == "true" ]]; then
+    warn "Skipping cache purge (CF_ZONE_ID or CF_API_TOKEN not set)"
+fi
+
 # Summary
 echo ""
 echo "========================================"
