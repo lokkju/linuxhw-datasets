@@ -188,7 +188,7 @@ from pathlib import Path
 
 ingest_edid_repo(
     repo_path=Path('upstream/EDID'),
-    db_path=Path('data/ducklake/edid.ducklake'),
+    ducklake_path=Path('data/ducklake/edid.ducklake'),
     build_date='$DATE',
 )
 "
