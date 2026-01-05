@@ -150,6 +150,8 @@ To publish datasets to Cloudflare R2:
 
 1. Create an R2 bucket in Cloudflare Dashboard
 2. Create R2 API token: Dashboard → R2 → Manage R2 API Tokens
+   - Permissions: **Object Read & Write**
+   - Scope: Specific bucket (e.g., `roaringbuckets`) or all buckets
 3. Configure credentials:
 
 ```bash
