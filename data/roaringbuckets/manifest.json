@@ -2,7 +2,7 @@
   "format_version": "v1",
   "version": 9,
   "bucket_format": 4,
-  "total_entries": 141748,
+  "total_entries": 141751,
   "buckets": 256,
   "bucket_counts": [
     513,
@@ -53,7 +53,7 @@
     526,
     569,
     574,
-    565,
+    566,
     580,
     585,
     556,
@@ -138,7 +138,7 @@
     583,
     514,
     489,
-    571,
+    572,
     528,
     522,
     596,
@@ -176,7 +176,7 @@
     562,
     542,
     591,
-    576,
+    577,
     551,
     565,
     562,
@@ -262,13 +262,13 @@
     551,
     557
   ],
-  "built_at": "2026-01-05",
+  "built_at": "2026-01-06",
   "indexes": {
     "vendors": {
       "count": 572,
-      "total_bytes": 253649,
+      "total_bytes": 253657,
       "strings_bytes": 3031,
-      "bitmaps_bytes": 243738
+      "bitmaps_bytes": 243746
     },
     "products": {
       "count": 12998,
@@ -284,18 +284,18 @@
     },
     "sizes": {
       "count": 139,
-      "total_bytes": 227720,
+      "total_bytes": 227724,
       "strings_bytes": 544,
-      "bitmaps_bytes": 225492
+      "bitmaps_bytes": 225496
     },
     "paths": {
       "count": 24819,
-      "total_bytes": 1651669,
+      "total_bytes": 1651683,
       "strings_bytes": 556187,
-      "bitmaps_bytes": 797638
+      "bitmaps_bytes": 797652
     }
   },
-  "data_version": "2026.01.05-cc83e52221a9",
+  "data_version": "2026.01.06-cc83e52221a9",
   "upstream": {
     "commit": "cc83e52221a9",
     "date": "2025-01-06"
