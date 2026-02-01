@@ -1,7 +1,15 @@
 {
-  "current": "2026.01.06-cc83e52221a9",
+  "current": "2026.02.01-9c0c1bffc9c0",
   "format_version": "v1",
   "versions": [
+    {
+      "version": "2026.02.01-9c0c1bffc9c0",
+      "upstream_commit": "9c0c1bffc9c0",
+      "upstream_date": "2026-01-08",
+      "build_date": "2026-02-01",
+      "ts": "2026-02-01T00:40:22.777721+00:00",
+      "count": 217392
+    },
     {
       "version": "2026.01.06-cc83e52221a9",
       "upstream_commit": "cc83e52221a9",
